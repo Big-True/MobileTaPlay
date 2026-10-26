@@ -1,0 +1,32 @@
+node_modules/
+dist/
+build/
+.turbo/
+*.local
+.DS_Store
+Thumbs.db
+
+# Capacitor / mobile
+apps/mobile/android/app/build/
+apps/mobile/android/.gradle/
+apps/mobile/ios/App/Pods/
+apps/mobile/ios/App/App/public/
+apps/mobile/www/
+*.apk
+*.aab
+*.ipa
+
+# IDE
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
