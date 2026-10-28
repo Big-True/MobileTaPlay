@@ -1,65 +1,66 @@
 # MobileTaPlay
 
-**第三方跨平台魔塔客户端** — 基于 [HTML5 魔塔广场](https://h5mota.com/)（h5mota）在线内容，主打 **手柄 + 触屏** 操作。
+**第三方 Android 魔塔客户端** — 加载 [HTML5 魔塔广场](https://h5mota.com/)（h5mota）在线塔，主打 **手柄 + 触屏**。
 
 > 纯第三方项目，与 h5mota 官方、mota-js 作者无隶属关系。  
-> 游戏内容版权归各塔作者；引擎 [mota-js](https://github.com/ckcz123/mota-js) 为 BSD-3-Clause。
+> 游戏内容版权归各塔作者；引擎 [mota-js](https://github.com/ckcz123/mota-js) 为 BSD-3-Clause。  
+> 隐私与完整声明见 [docs/10-隐私与致谢.md](./docs/10-隐私与致谢.md)。
 
-## 特性（规划）
+## 特性
 
-- 在线游玩广场 2000+ 塔（不打包游戏内容）
-- 手柄映射 → 引擎键盘语义（不破坏录像/排行）
-- 触屏优化（安全区 / 可选虚拟键）
-- 无账号要求，打开即玩
-- 平台优先级：**Android → iOS → Windows → macOS/Linux**
+- 在线浏览 / 游玩广场塔（不打包游戏内容）
+- Jetpack Compose 壳层：首页 · 详情 · 搜索 · 列表（最近 / 收藏 / 缓存）
+- 手柄映射（可在设置里改绑），虚拟键盘
+- 离线缓存：详情页缓存后本地可玩
+- 无账号，打开即用
 
-## 技术选型
+当前仅 **Android**（minSdk 26）。iOS / 桌面不在本期范围。
 
-| 层 | 选型 |
-|---|---|
-| 移动壳 | **Capacitor v8**（System WebView） |
-| 输入桥 | TypeScript `packages/input-bridge` |
-| 映射表 | `packages/input-mapping`（可校验、可测） |
-| 桌面（后续） | 评估 Tauri 2，复用上述 packages |
-| 站点内容 | `https://h5mota.com`（远程加载） |
+## 下载与安装
 
-设计文档见 [`docs/`](./docs)：
+- 预编译包：[GitHub Releases](https://github.com/Big-True/MobileTaPlay/releases)（`MobileTaPlay.apk`）
+- 或本地构建后安装：
 
-1. [需求分析](./docs/01-需求分析.md)
-2. [壳框架调研](./docs/02-壳框架调研.md)
-3. [Capacitor / Tauri 成熟度](./docs/03-Capacitor-Tauri成熟度.md)
-4. [架构设计](./docs/04-架构设计.md)
-
-## 仓库结构
-
-```
-packages/input-mapping   # 手柄映射 schema / 默认表 / 校验
-packages/input-bridge    # Gamepad/虚拟键 → KeyboardEvent
-packages/shell-common    # 常量、设置、域白名单
-apps/mobile              # Capacitor 应用（Android/iOS）
-docs/                    # 需求与架构
+```powershell
+# 需要 JDK 21 与 Android SDK
+powershell -File scripts/build-android.ps1
+adb install -r dist/MobileTaPlay.apk
 ```
 
 ## 开发
 
-要求：Node ≥ 22，pnpm 9，Android Studio（M1+），Xcode（iOS 阶段）。
+| 项 | 要求 |
+|---|---|
+| JDK | 21 |
+| Android SDK | compileSdk 35 |
+| 工程 | `android/`（Kotlin + Compose） |
 
-```bash
-pnpm install
-pnpm test
-pnpm lint
-
-# 移动壳
-pnpm --filter @mobiletaplay/mobile build
-pnpm --filter @mobiletaplay/mobile sync
-# 然后用 Android Studio / Xcode 打开 apps/mobile 下的原生工程
+```powershell
+cd android
+.\gradlew :app:testDebugUnitTest
+.\gradlew :app:assembleDebug
 ```
+
+CI（GitHub Actions）：单元测试 + `assembleDebug`。
+
+## 仓库结构
+
+```
+android/     # 原生 Android 工程（Kotlin + Compose）
+docs/        # 需求、架构、手柄实践、隐私与致谢
+scripts/     # 构建脚本
+dist/        # 本地产物 MobileTaPlay.apk
+```
+
+## 应用内关于
+
+设置 → **关于**：版本号、第三方声明、隐私摘要与致谢（游戏内点 ⚙ 亦可进入）。
 
 ## 贡献
 
-- 分支：`feat/*`、`fix/*`；PR 模板必填
-- CI：lint + unit tests
-- Issue：Bug / 功能 / 站点·输入 三类模板
+- 分支：`feat/*`、`fix/*`
+- Issue：Bug / 功能模板
+- 简单发行流程：变更说明 + Tag `vX.Y.Z` + Release 附 APK
 
 ## 许可
 

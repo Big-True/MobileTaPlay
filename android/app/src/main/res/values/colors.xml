@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="mtp_bg">#0F1419</color>
+    <color name="mtp_panel">#1A222C</color>
+    <color name="mtp_accent">#3D8BFD</color>
+</resources>
