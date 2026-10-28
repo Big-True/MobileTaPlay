@@ -23,6 +23,7 @@ jobs:
         env:
           ANDROID_HOME: ${{ env.ANDROID_HOME || '/usr/local/lib/android/sdk' }}
         run: |
+          chmod +x ./gradlew
           ./gradlew assembleDebug --no-daemon
       - name: Copy artifact
         run: |

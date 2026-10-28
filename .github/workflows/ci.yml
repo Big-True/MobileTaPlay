@@ -13,7 +13,9 @@ jobs:
         working-directory: android
         env:
           ANDROID_HOME: ${{ env.ANDROID_HOME || '/usr/local/lib/android/sdk' }}
-        run: ./gradlew testDebugUnitTest --no-daemon
+        run: |
+          chmod +x ./gradlew
+          ./gradlew testDebugUnitTest --no-daemon
       - name: Assemble debug
         working-directory: android
         env:
