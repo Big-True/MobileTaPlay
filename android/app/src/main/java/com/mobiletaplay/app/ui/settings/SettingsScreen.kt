@@ -39,6 +39,9 @@ import androidx.compose.runtime.setValue
 import com.mobiletaplay.app.data.SettingsRepository
 import com.mobiletaplay.app.input.PadActions
 import com.mobiletaplay.app.ui.about.AboutScreen
+import com.mobiletaplay.app.ui.common.padClickable
+import com.mobiletaplay.app.ui.common.padFocusRing
+import com.mobiletaplay.app.ui.common.shellNav
 
 /** Shared: activities feed pad keys here while binding. */
 object BindController {
@@ -98,6 +101,10 @@ private fun SettingsScreenContent(
     }
 
     Scaffold(
+        modifier = Modifier.shellNav(onBack = {
+            BindController.active = false
+            onBack()
+        }),
         topBar = {
             TopAppBar(
                 title = { Text("设置") },
@@ -105,7 +112,7 @@ private fun SettingsScreenContent(
                     IconButton(onClick = {
                         BindController.active = false
                         onBack()
-                    }) {
+                    }, modifier = Modifier.padFocusRing(corner = 12.dp)) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
                     }
                 },
@@ -133,7 +140,10 @@ private fun SettingsScreenContent(
                 Card(
                     Modifier
                         .fillMaxWidth()
-                        .clickable { vm.startBind(action.id) },
+                        .padClickable(
+                            onClick = { vm.startBind(action.id) },
+                            corner = 12.dp,
+                        ),
                 ) {
                     Row(
                         Modifier
@@ -157,10 +167,10 @@ private fun SettingsScreenContent(
             }
 
             Spacer(Modifier.height(8.dp))
-            TextButton(onClick = { vm.resetDefaults() }) {
+            TextButton(onClick = { vm.resetDefaults() }, modifier = Modifier.padFocusRing(corner = 20.dp)) {
                 Text("恢复默认映射")
             }
-            TextButton(onClick = onOpenAbout) {
+            TextButton(onClick = onOpenAbout, modifier = Modifier.padFocusRing(corner = 20.dp)) {
                 Text("关于 MobileTaPlay")
             }
         }

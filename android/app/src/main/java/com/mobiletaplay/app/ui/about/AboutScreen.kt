@@ -24,6 +24,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import com.mobiletaplay.app.ui.common.PadIconButton
+import com.mobiletaplay.app.ui.common.padFocusRing
+import com.mobiletaplay.app.ui.common.shellNav
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -45,12 +49,28 @@ fun AboutScreen(onBack: () -> Unit) {
         }
     }
 
+    val scroll = androidx.compose.foundation.rememberScrollState()
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
     Scaffold(
+        modifier = Modifier.shellNav(
+            onBack = onBack,
+            onScroll = { up ->
+                val delta = 280
+                val target = if (up) (scroll.value - delta).coerceAtLeast(0)
+                else (scroll.value + delta).coerceAtMost(scroll.maxValue)
+                if (target == scroll.value) {
+                    false
+                } else {
+                    scope.launch { scroll.animateScrollTo(target) }
+                    true
+                }
+            },
+        ),
         topBar = {
             TopAppBar(
                 title = { Text("关于 MobileTaPlay") },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
+                    PadIconButton(onClick = onBack, corner = 8.dp) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
                     }
                 },
@@ -61,7 +81,7 @@ fun AboutScreen(onBack: () -> Unit) {
             Modifier
                 .padding(pad)
                 .fillMaxSize()
-                .verticalScroll(rememberScrollState())
+                .verticalScroll(scroll)
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {

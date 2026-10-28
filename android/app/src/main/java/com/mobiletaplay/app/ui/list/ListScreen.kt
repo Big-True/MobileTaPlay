@@ -41,6 +41,9 @@ import com.mobiletaplay.app.data.Tower
 import com.mobiletaplay.app.data.TowerApi
 import com.mobiletaplay.app.data.TowerStore
 import com.mobiletaplay.app.ui.common.ErrorPane
+import com.mobiletaplay.app.ui.common.PadIconButton
+import com.mobiletaplay.app.ui.common.padFocusRing
+import com.mobiletaplay.app.ui.common.shellNav
 import com.mobiletaplay.app.ui.home.TowerCard
 import kotlinx.coroutines.launch
 
@@ -182,11 +185,12 @@ fun ListScreen(
     LaunchedEffect(Unit) { vm.load() }
 
     Scaffold(
+        modifier = Modifier.shellNav(onBack = onBack),
         topBar = {
             TopAppBar(
                 title = { Text(ui.title) },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
+                    PadIconButton(onClick = onBack, corner = 8.dp) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
                     }
                 },
@@ -214,7 +218,9 @@ fun ListScreen(
                         contentPadding = PaddingValues(16.dp),
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp),
-                        modifier = Modifier.fillMaxSize(),
+                        modifier = Modifier
+                            .fillMaxSize()
+                            ,
                     ) {
                         items(ui.towers, key = { "${mode}_${it.name}" }) { t ->
                             TowerCard(

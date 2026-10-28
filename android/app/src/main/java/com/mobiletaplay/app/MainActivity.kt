@@ -32,6 +32,34 @@ class MainActivity : ComponentActivity() {
             }
             return true
         }
+
+        // Map gamepad face/shoulder keys to keys Compose understands.
+        val mappedCode = when (event.keyCode) {
+            android.view.KeyEvent.KEYCODE_BUTTON_A -> android.view.KeyEvent.KEYCODE_DPAD_CENTER
+            android.view.KeyEvent.KEYCODE_BUTTON_B -> android.view.KeyEvent.KEYCODE_BACK
+            android.view.KeyEvent.KEYCODE_BUTTON_Y,
+            android.view.KeyEvent.KEYCODE_BUTTON_START,
+            android.view.KeyEvent.KEYCODE_MENU -> android.view.KeyEvent.KEYCODE_MENU
+            android.view.KeyEvent.KEYCODE_BUTTON_L1 -> android.view.KeyEvent.KEYCODE_PAGE_UP
+            android.view.KeyEvent.KEYCODE_BUTTON_R1 -> android.view.KeyEvent.KEYCODE_PAGE_DOWN
+            else -> event.keyCode
+        }
+
+        // Shell pad: move Compose focus / back / menu before View focus steals arrows.
+        if (com.mobiletaplay.app.ui.common.ShellPad.dispatch(mappedCode, event.action)) {
+            return true
+        }
+
+        if (mappedCode != event.keyCode) {
+            val mapped = android.view.KeyEvent(
+                event.downTime,
+                event.eventTime,
+                event.action,
+                mappedCode,
+                event.repeatCount,
+            )
+            return super.dispatchKeyEvent(mapped)
+        }
         return super.dispatchKeyEvent(event)
     }
 
@@ -61,6 +89,10 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        try {
+            window.decorView.defaultFocusHighlightEnabled = false
+        } catch (_: Exception) {
+        }
         OrientationPrefs.apply(this)
         enableEdgeToEdge()
         setContent {

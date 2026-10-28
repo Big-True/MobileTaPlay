@@ -32,6 +32,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.mobiletaplay.app.ui.home.toggleActivityOrientation
+import com.mobiletaplay.app.ui.common.PadIconButton
+import com.mobiletaplay.app.ui.common.padFocusRing
+import com.mobiletaplay.app.ui.common.shellNav
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -87,20 +90,33 @@ fun DetailScreen(
     }
 
     Scaffold(
+        modifier = Modifier.shellNav(
+            onBack = onBack,
+            onL = {
+                val n = tower?.previews?.size?.takeIf { it > 1 }
+                    ?: if (tower?.image != null) 1 else 0
+                if (n > 1) shotIndex = (shotIndex - 1 + n) % n
+            },
+            onR = {
+                val n = tower?.previews?.size?.takeIf { it > 1 }
+                    ?: if (tower?.image != null) 1 else 0
+                if (n > 1) shotIndex = (shotIndex + 1) % n
+            },
+        ),
         topBar = {
             TopAppBar(
                 title = { Text(tower?.title ?: "关卡详情", maxLines = 1, overflow = TextOverflow.Ellipsis) },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
+                    PadIconButton(onClick = onBack, corner = 8.dp) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
                     }
                 },
                 actions = {
-                    IconButton(onClick = { toggleActivityOrientation(activity) }) {
+                    PadIconButton(onClick = { toggleActivityOrientation(activity) }, corner = 8.dp) {
                         Icon(Icons.Default.ScreenRotation, contentDescription = "横竖屏")
                     }
                     CacheButton(tower = tower, onDeleted = onBack)
-                    IconButton(onClick = onOpenSettings) {
+                    PadIconButton(onClick = onOpenSettings, corner = 8.dp) {
                         Icon(Icons.Default.Settings, contentDescription = "设置")
                     }
                 },
@@ -115,7 +131,8 @@ fun DetailScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(16.dp)
-                            .height(48.dp),
+                            .height(48.dp)
+                            .padFocusRing(corner = 24.dp),
                     ) {
                         Icon(Icons.Default.PlayArrow, contentDescription = null)
                         Spacer(Modifier.width(8.dp))
@@ -237,12 +254,7 @@ private fun DetailInfo(
             Stat("层数", t.floors ?: "?")
         }
         Spacer(Modifier.height(10.dp))
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text("简介", style = MaterialTheme.typography.titleMedium)
-            TextButton(onClick = { expanded = !expanded }) {
-                Text(if (expanded) "收起" else "展开")
-            }
-        }
+        Text("简介", style = MaterialTheme.typography.titleMedium)
         Spacer(Modifier.height(6.dp))
         Text(
             plain(t.description ?: t.text ?: "暂无简介"),
@@ -296,27 +308,31 @@ private fun CacheButton(tower: Tower?, onDeleted: () -> Unit = {}) {
         val bytes = com.mobiletaplay.app.data.GameCache.sizeBytes(context, tower.name)
         sizeLabel = if (cached) "(" + com.mobiletaplay.app.data.GameCache.formatSize(bytes) + ")" else ""
     }
-    TextButton(enabled = !busy, onClick = {
-        scope.launch {
-            busy = true
-            try {
-                if (cached) {
-                    com.mobiletaplay.app.data.GameCache.delete(context, tower.name)
-                    store.removeCache(tower.name)
-                    onDeleted()
-                } else {
-                    store.cacheTower(tower)
-                    val path = tower.link?.takeIf { it.startsWith("/") } ?: "/games/" + tower.name + "/"
-                    com.mobiletaplay.app.data.GameCache.download(context, "https://h5mota.com" + path, tower.name)
+    TextButton(
+        enabled = !busy,
+        onClick = {
+            scope.launch {
+                busy = true
+                try {
+                    if (cached) {
+                        com.mobiletaplay.app.data.GameCache.delete(context, tower.name)
+                        store.removeCache(tower.name)
+                        onDeleted()
+                    } else {
+                        store.cacheTower(tower)
+                        val path = tower.link?.takeIf { it.startsWith("/") } ?: "/games/" + tower.name + "/"
+                        com.mobiletaplay.app.data.GameCache.download(context, "https://h5mota.com" + path, tower.name)
+                    }
+                    cached = com.mobiletaplay.app.data.GameCache.isCached(context, tower.name)
+                    val bytes = com.mobiletaplay.app.data.GameCache.sizeBytes(context, tower.name)
+                    sizeLabel = if (cached) "(" + com.mobiletaplay.app.data.GameCache.formatSize(bytes) + ")" else ""
+                } finally {
+                    busy = false
                 }
-                cached = com.mobiletaplay.app.data.GameCache.isCached(context, tower.name)
-                val bytes = com.mobiletaplay.app.data.GameCache.sizeBytes(context, tower.name)
-                sizeLabel = if (cached) "(" + com.mobiletaplay.app.data.GameCache.formatSize(bytes) + ")" else ""
-            } finally {
-                busy = false
             }
-        }
-    }) {
+        },
+        modifier = Modifier.padFocusRing(corner = 8.dp),
+    ) {
         Text(if (busy) "…" else if (cached) "删除缓存" + sizeLabel else "缓存")
     }
 }

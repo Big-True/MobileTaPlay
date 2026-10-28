@@ -26,6 +26,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.mobiletaplay.app.ui.common.padFocusRing
+import com.mobiletaplay.app.ui.common.shellNav
 
 data class SearchQuery(
     val keyword: String = "",
@@ -46,16 +48,17 @@ fun SearchScreen(
     var q by remember { mutableStateOf(initial) }
 
     Scaffold(
+        modifier = Modifier.shellNav(onBack = onBack),
         topBar = {
             TopAppBar(
                 title = { Text("高级搜索") },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
+                    IconButton(onClick = onBack, modifier = Modifier.padFocusRing(corner = 24.dp)) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
                     }
                 },
                 actions = {
-                    IconButton(onClick = { onApply(q) }) {
+                    IconButton(onClick = { onApply(q) }, modifier = Modifier.padFocusRing(corner = 24.dp)) {
                         Text("搜索", color = MaterialTheme.colorScheme.primary)
                     }
                 },
@@ -73,7 +76,9 @@ fun SearchScreen(
             OutlinedTextField(
                 value = q.keyword,
                 onValueChange = { q = q.copy(keyword = it) },
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padFocusRing(),
                 label = { Text("关键词") },
                 singleLine = true,
             )
@@ -83,6 +88,7 @@ fun SearchScreen(
                     FilterChip(
                         selected = q.mode == id,
                         onClick = { q = q.copy(mode = id) },
+                        modifier = Modifier.padFocusRing(corner = 8.dp, ringVInset = 6.dp),
                         label = { Text(label) },
                     )
                 }
@@ -96,6 +102,7 @@ fun SearchScreen(
                     FilterChip(
                         selected = q.sort == id,
                         onClick = { q = q.copy(sort = id) },
+                        modifier = Modifier.padFocusRing(corner = 8.dp, ringVInset = 6.dp),
                         label = { Text(label) },
                     )
                 }
@@ -110,6 +117,7 @@ fun SearchScreen(
                             if (!s.add(id) && s.size > 1) s.remove(id)
                             q = q.copy(sections = s)
                         },
+                        modifier = Modifier.padFocusRing(corner = 8.dp, ringVInset = 6.dp),
                         label = { Text(label) },
                     )
                 }

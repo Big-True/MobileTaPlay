@@ -25,6 +25,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.focusable
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
@@ -34,6 +35,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.mobiletaplay.app.data.Tower
+import com.mobiletaplay.app.ui.common.padClickable
 
 /** B/新需求：封面四角信息 + 全名 + 作者 + 4 行简介 */
 @Composable
@@ -42,12 +44,12 @@ fun TowerCard(
     fav: Boolean,
     onClick: () -> Unit,
     onFav: () -> Unit,
+    focusRequester: androidx.compose.ui.focus.FocusRequester? = null,
 ) {
     Card(
         Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
-            .clickable(onClick = onClick),
+            .padClickable(onClick = onClick, focusRequester = focusRequester),
     ) {
         Column {
             Box(Modifier.height(160.dp)) {
@@ -77,7 +79,9 @@ fun TowerCard(
                 )
                 IconButton(
                     onClick = onFav,
-                    modifier = Modifier.align(Alignment.TopEnd),
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .focusable(),
                 ) {
                     Icon(
                         Icons.Default.Star,

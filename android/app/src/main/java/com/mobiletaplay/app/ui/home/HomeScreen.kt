@@ -51,7 +51,9 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -63,6 +65,10 @@ import com.mobiletaplay.app.data.TowerStore
 import com.mobiletaplay.app.data.Tower
 import com.mobiletaplay.app.data.TowerApi
 import com.mobiletaplay.app.ui.common.ErrorPane
+import com.mobiletaplay.app.ui.common.PadIconButton
+import com.mobiletaplay.app.ui.common.padFocusRing
+import com.mobiletaplay.app.ui.common.rememberShellFocus
+import com.mobiletaplay.app.ui.common.shellNav
 import com.mobiletaplay.app.ui.search.SearchQuery
 import kotlinx.coroutines.launch
 
@@ -191,7 +197,7 @@ private class HomeVmFactory(private val repo: TowerStore) : ViewModelProvider.Fa
     override fun <T : ViewModel> create(modelClass: Class<T>): T = HomeViewModel(repo) as T
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, androidx.compose.ui.ExperimentalComposeUiApi::class)
 @Composable
 fun HomeScreen(
     onOpenDetail: (String) -> Unit,
@@ -207,6 +213,56 @@ fun HomeScreen(
     val drawer = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
     var drawerTab by remember { mutableStateOf("recent") }
+    val shellFocus = rememberShellFocus()
+    val drawerFocus = androidx.compose.ui.focus.FocusRequester()
+    val firstCardFocus = androidx.compose.ui.focus.FocusRequester()
+    val drawerItemFocus = remember {
+        List(4) { androidx.compose.ui.focus.FocusRequester() }
+    }
+    var drawerIndex by remember { mutableStateOf(0) }
+
+    LaunchedEffect(drawer.isOpen) {
+        if (drawer.isOpen) {
+            kotlinx.coroutines.delay(180)
+            drawerIndex = 0
+            try {
+                drawerItemFocus[0].requestFocus()
+            } catch (_: Exception) {
+            }
+        }
+    }
+
+    // Hard trap: while drawer is open, d-pad only walks menu items.
+    val shellFocusMgr = androidx.compose.ui.platform.LocalFocusManager.current
+    LaunchedEffect(drawer.isOpen) {
+        if (drawer.isOpen) {
+            com.mobiletaplay.app.ui.common.ShellPad.onDirection = { dir ->
+                when (dir) {
+                    androidx.compose.ui.focus.FocusDirection.Down -> {
+                        drawerIndex = (drawerIndex + 1) % drawerItemFocus.size
+                        try {
+                            drawerItemFocus[drawerIndex].requestFocus()
+                        } catch (_: Exception) {
+                        }
+                    }
+                    androidx.compose.ui.focus.FocusDirection.Up -> {
+                        drawerIndex =
+                            (drawerIndex + drawerItemFocus.size - 1) % drawerItemFocus.size
+                        try {
+                            drawerItemFocus[drawerIndex].requestFocus()
+                        } catch (_: Exception) {
+                        }
+                    }
+                    else -> {
+                    }
+                }
+            }
+        } else {
+            com.mobiletaplay.app.ui.common.ShellPad.onDirection = { dir ->
+                shellFocusMgr.moveFocus(dir)
+            }
+        }
+    }
 
     LaunchedEffect(Unit) {
         vm.loadIfNeeded()
@@ -217,48 +273,76 @@ fun HomeScreen(
         drawerState = drawer,
         gesturesEnabled = drawer.isOpen,
         drawerContent = {
-            ModalDrawerSheet {
+            ModalDrawerSheet(
+                modifier = Modifier.focusProperties {
+                    canFocus = drawer.isOpen
+                    if (drawer.isOpen) {
+                        exit = { androidx.compose.ui.focus.FocusRequester.Cancel }
+                    }
+                },
+            ) {
                 Text(
                     "MobileTaPlay",
                     style = MaterialTheme.typography.titleMedium,
                     modifier = Modifier.padding(16.dp),
                 )
-                NavigationDrawerItem(
-                    label = { Text("最近游玩") },
-                    selected = false,
-                    onClick = {
-                        scope.launch { drawer.close() }
-                        onOpenList("recent")
-                    },
-                )
-                NavigationDrawerItem(
-                    label = { Text("星标收藏") },
-                    selected = false,
-                    onClick = {
-                        scope.launch { drawer.close() }
-                        onOpenList("fav")
-                    },
-                )
-                NavigationDrawerItem(
-                    label = { Text("已缓存") },
-                    selected = false,
-                    onClick = {
-                        scope.launch { drawer.close() }
-                        onOpenList("cached")
-                    },
-                )
-                NavigationDrawerItem(
-                    label = { Text("高级搜索") },
-                    selected = false,
-                    onClick = {
-                        scope.launch { drawer.close() }
-                        onOpenSearch(SearchQuery())
-                    },
-                )
+                if (drawer.isOpen) {
+                    NavigationDrawerItem(
+                        label = { Text("最近游玩") },
+                        selected = false,
+                        modifier = Modifier.padFocusRing(focusRequester = drawerItemFocus[0], corner = 28.dp),
+                        onClick = {
+                            scope.launch { drawer.close() }
+                            onOpenList("recent")
+                        },
+                    )
+                    NavigationDrawerItem(
+                        label = { Text("星标收藏") },
+                        selected = false,
+                        modifier = Modifier.padFocusRing(focusRequester = drawerItemFocus[1], corner = 28.dp),
+                        onClick = {
+                            scope.launch { drawer.close() }
+                            onOpenList("fav")
+                        },
+                    )
+                    NavigationDrawerItem(
+                        label = { Text("已缓存") },
+                        selected = false,
+                        modifier = Modifier.padFocusRing(focusRequester = drawerItemFocus[2], corner = 28.dp),
+                        onClick = {
+                            scope.launch { drawer.close() }
+                            onOpenList("cached")
+                        },
+                    )
+                    NavigationDrawerItem(
+                        label = { Text("高级搜索") },
+                        selected = false,
+                        modifier = Modifier.padFocusRing(focusRequester = drawerItemFocus[3], corner = 28.dp),
+                        onClick = {
+                            scope.launch { drawer.close() }
+                            onOpenSearch(SearchQuery())
+                        },
+                    )
+                }
             }
         },
     ) {
         Scaffold(
+            modifier = Modifier
+                .focusProperties {
+                    // Entire chrome (topBar + content) disabled while drawer is open.
+                    canFocus = !drawer.isOpen
+                }
+                .shellNav(
+                    onBack = {
+                        if (drawer.isOpen) scope.launch { drawer.close() }
+                    },
+                    onMenu = {
+                        scope.launch {
+                            if (drawer.isOpen) drawer.close() else drawer.open()
+                        }
+                    },
+                ),
             topBar = {
                 TopAppBar(
                     title = {
@@ -272,18 +356,25 @@ fun HomeScreen(
                         }
                     },
                     navigationIcon = {
-                        IconButton(onClick = { scope.launch { drawer.open() } }) {
+                        PadIconButton(
+                            onClick = { scope.launch { drawer.open() } },
+                            focusRequester = shellFocus,
+                            corner = 8.dp,
+                        ) {
                             Icon(Icons.Default.Menu, contentDescription = "菜单")
                         }
                     },
                     actions = {
-                        IconButton(onClick = { toggleActivityOrientation(activity) }) {
+                        PadIconButton(
+                            onClick = { toggleActivityOrientation(activity) },
+                            corner = 8.dp,
+                        ) {
                             Icon(Icons.Default.ScreenRotation, contentDescription = "横竖屏")
                         }
-                        IconButton(onClick = { vm.refresh() }) {
+                        PadIconButton(onClick = { vm.refresh() }, corner = 8.dp) {
                             Icon(Icons.Default.Refresh, contentDescription = "刷新")
                         }
-                        IconButton(onClick = onOpenSettings) {
+                        PadIconButton(onClick = onOpenSettings, corner = 8.dp) {
                             Icon(Icons.Default.Settings, contentDescription = "设置")
                         }
                     },
@@ -293,12 +384,17 @@ fun HomeScreen(
             Column(
                 Modifier
                     .padding(pad)
-                    .fillMaxSize(),
+                    .fillMaxSize()
+                    ,
             ) {
                 Row(
                     Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp),
+                        .padding(horizontal = 16.dp)
+                        .focusProperties {
+                            // Chip row → first tower card
+                            down = firstCardFocus
+                        },
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     listOf("hot" to "热门", "new" to "最新", "play" to "最多人玩", "rate" to "最多好评").forEach { (id, label) ->
@@ -308,6 +404,7 @@ fun HomeScreen(
                                 vm.setSort(id)
                                 scope.launch { gridState.scrollToItem(0) }
                             },
+                            modifier = Modifier.padFocusRing(corner = 8.dp, ringVInset = 6.dp),
                             label = { Text(label) },
                         )
                     }
@@ -323,6 +420,7 @@ fun HomeScreen(
                         loading = state.loading,
                         hasMore = state.hasMore,
                         gridState = gridState,
+                        firstCardFocus = firstCardFocus,
                         onLoadMore = { vm.loadMore() },
                         onOpen = { t -> vm.onOpen(t); onOpenDetail(t.name) },
                         onFav = { vm.toggleFavorite(it) },
@@ -354,6 +452,7 @@ private fun TowerGrid(
     loading: Boolean,
     hasMore: Boolean,
     gridState: androidx.compose.foundation.lazy.grid.LazyGridState,
+    firstCardFocus: androidx.compose.ui.focus.FocusRequester? = null,
     onLoadMore: () -> Unit,
     onOpen: (Tower) -> Unit,
     onFav: (String) -> Unit,
@@ -364,7 +463,9 @@ private fun TowerGrid(
         contentPadding = PaddingValues(16.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier
+            .fillMaxSize()
+            ,
     ) {
         items(towers, key = { it.id }) { t ->
             TowerCard(
@@ -372,6 +473,7 @@ private fun TowerGrid(
                 fav = favorites.contains(t.name),
                 onClick = { onOpen(t) },
                 onFav = { onFav(t.name) },
+                focusRequester = if (t.name == towers.firstOrNull()?.name) firstCardFocus else null,
             )
         }
         if (towers.isNotEmpty()) {
