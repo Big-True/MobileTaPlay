@@ -2,7 +2,7 @@
 
 **第三方 Android 魔塔客户端** — 加载 [HTML5 魔塔广场](https://h5mota.com/)（h5mota）在线塔，主打 **手柄 + 触屏**。
 
-**当前版本：`0.2.1`** · [下载 APK](https://github.com/Big-True/MobileTaPlay/releases/latest)
+**当前版本：`0.2.2`** · [下载 APK](https://github.com/Big-True/MobileTaPlay/releases/latest)
 
 > 纯第三方项目，与 h5mota 官方、mota-js 作者无隶属关系。  
 > 游戏内容版权归各塔作者；引擎 [mota-js](https://github.com/ckcz123/mota-js) 为 BSD-3-Clause。  

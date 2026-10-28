@@ -36,6 +36,9 @@ class GameActivity : ComponentActivity() {
     private lateinit var webView: WebView
     private lateinit var gameOverlay: GameOverlayView
     private var immersive = false
+    /** 0=窗口+可玩  1=全屏  2=窗口+顶栏焦点 (Start 循环切换) */
+    private var chromeState = 0
+    private var chromeIdx = 0
     private val stickHeld = mutableSetOf<String>()
     private lateinit var injector: InputInjector
     /** Locked at create: handheld portrait panels used in landscape must not flip mid-game. */
@@ -231,17 +234,24 @@ class GameActivity : ComponentActivity() {
             "dpad_down" to (hatY > 0.5f || y > dz),
         )
         val kbMode = gameOverlay.isKeyboardVisible()
+        val chromeMode = chromeState == 2
         var handled = false
         for ((control, active) in states) {
             val key = "stick_" + control
             val was = stickHeld.contains(key)
             if (active && !was) {
                 stickHeld.add(key)
-                if (kbMode) keyboardNav(control) else sendKeyCode(MappingStore.keyCode(control), true)
+                if (chromeMode) {
+                    when (control) {
+                        "dpad_left" -> moveChrome(-1)
+                        "dpad_right" -> moveChrome(1)
+                    }
+                } else if (kbMode) keyboardNav(control)
+                else sendKeyCode(MappingStore.keyCode(control), true)
                 handled = true
             } else if (!active && was) {
                 stickHeld.remove(key)
-                if (!kbMode) sendKeyCode(MappingStore.keyCode(control), false)
+                if (!chromeMode && !kbMode) sendKeyCode(MappingStore.keyCode(control), false)
                 handled = true
             }
         }
@@ -269,14 +279,45 @@ class GameActivity : ComponentActivity() {
             }
         }
 
+
+        // Overlay chrome nav (chromeState == 2)
+        if (chromeState == 2) {
+            val padNav = PadActions.padName(event.keyCode)
+            when {
+                !down -> return true
+                padNav == "A" -> {
+                    gameOverlay.activateChrome()
+                    return true
+                }
+                padNav == "B" -> {
+                    // B exits focus mode -> windowed playable
+                    setChromeState(0)
+                    return true
+                }
+                padNav == "←" -> { moveChrome(-1); return true }
+                padNav == "→" -> { moveChrome(1); return true }
+                padNav == "Select" -> {
+                    setChromeState((chromeState + 1) % 3)
+                    return true
+                }
+                else -> return true
+            }
+        }
+
         val padBtn = PadActions.padName(event.keyCode)
         if (padBtn != null) {
             val action = PadActions.actionForButton(padBtn)
             if (down) {
                 if (event.repeatCount == 0) {
                     when {
+                        // Select: cycle 窗口 -> 全屏 -> 顶栏焦点 -> 窗口
+                        padBtn == "Select" -> {
+                            setChromeState((chromeState + 1) % 3)
+                            return true
+                        }
+                        // Fullscreen button unbound (handled by Select cycle)
+                        action == "fs" -> { return true }
                         action == "vkey" -> { gameOverlay.toggleKeyboard(); return true }
-                        action == "fs" -> { toggleImmersive(); return true }
                         action != null -> {
                             val code = PadActions.keyCodeForAction(action)
                             if (code != 0) {
@@ -295,7 +336,6 @@ class GameActivity : ComponentActivity() {
                                 "R1" -> 68
                                 "L2" -> 84
                                 "R2" -> 81
-                                "Start" -> 65
                                 "↑" -> 38
                                 "↓" -> 40
                                 "←" -> 37
@@ -331,6 +371,40 @@ class GameActivity : ComponentActivity() {
      * displayMetrics alone (this handheld reports a 1080x1920 portrait panel
      * while the logical display is landscape).
      */
+
+    /** 0 windowed playable · 1 fullscreen · 2 windowed chrome focus */
+    private fun moveChrome(delta: Int) {
+        val n = gameOverlay.chromeCount()
+        chromeIdx = (chromeIdx + delta + n) % n
+        gameOverlay.setChromeIndex(chromeIdx)
+    }
+
+    private fun setChromeState(next: Int) {
+        chromeState = next
+        when (next) {
+            0 -> {
+                immersive = false
+                applyImmersive(false)
+                gameOverlay.setBarVisible(true)
+                gameOverlay.setChromeIndex(-1)
+            }
+            1 -> {
+                immersive = true
+                applyImmersive(true)
+                gameOverlay.setBarVisible(false)
+                gameOverlay.setChromeIndex(-1)
+            }
+            2 -> {
+                immersive = false
+                applyImmersive(false)
+                gameOverlay.setBarVisible(true)
+                chromeIdx = 0
+                gameOverlay.setChromeIndex(0)
+            }
+        }
+        applyCoverFit()
+    }
+
     private fun pinGameOrientation() {
         val w = webView.width
         val h = webView.height
@@ -353,20 +427,8 @@ class GameActivity : ComponentActivity() {
     }
 
     private fun toggleImmersive() {
-        immersive = !immersive
-        applyImmersive(immersive)
-        gameOverlay.setBarVisible(!immersive)
-        pinGameOrientation()
-        // Body size settles after chrome change — let engine resize on healthy metrics.
-        webView.post { applyCoverFit() }
-        webView.postDelayed({
-            pinGameOrientation()
-            applyCoverFit()
-        }, 500)
-        webView.postDelayed({
-            pinGameOrientation()
-            applyCoverFit()
-        }, 1200)
+        // Overlay 全屏按钮：与 Start 三态循环保持一致
+        setChromeState(if (immersive) 0 else 1)
     }
 
     private fun applyImmersive(on: Boolean) {

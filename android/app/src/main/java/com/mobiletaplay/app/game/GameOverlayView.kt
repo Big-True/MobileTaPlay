@@ -6,6 +6,7 @@ import android.content.Context
 import android.view.View
 import android.widget.FrameLayout
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -40,7 +41,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-private val MtpBg = Color(0xFF0F1419)
+private val MtpBg = Color(0xFF0F1419) // match home dark surface
 private val MtpPanel = Color(0xFF1A222C)
 private val MtpInk = Color(0xFFE7ECF1)
 private val MtpMuted = Color(0xFF8B9BAB)
@@ -74,6 +75,7 @@ class GameOverlayView(
     private var kbIndex = 0
     private var showFn = false
     private var barVisible = true
+    private var chromeIndex = -1
     private val composeView = ComposeView(context)
 
     init {
@@ -99,6 +101,7 @@ class GameOverlayView(
                     kbVisible = showKb,
                     kbIndex = idx,
                     showFn = showFn,
+                    chromeIndex = chromeIndex,
                     onBack = onBack,
                     onRotate = onRotate,
                     onFullscreen = onToggleImmersive,
@@ -114,6 +117,22 @@ class GameOverlayView(
     fun setBarVisible(visible: Boolean) {
         barVisible = visible
         recompose()
+    }
+
+    fun setChromeIndex(index: Int) {
+        chromeIndex = index
+        recompose()
+    }
+
+    fun chromeCount(): Int = 4
+
+    fun activateChrome() {
+        when (chromeIndex) {
+            0 -> onBack()
+            1 -> onRotate()
+            2 -> onToggleImmersive()
+            3 -> onSettings()
+        }
     }
 
     fun isKeyboardVisible(): Boolean = kbVisible
@@ -166,6 +185,7 @@ private fun GameChrome(
     kbVisible: Boolean,
     kbIndex: Int,
     showFn: Boolean,
+    chromeIndex: Int = -1,
     onBack: () -> Unit,
     onRotate: () -> Unit,
     onFullscreen: () -> Unit,
@@ -187,14 +207,14 @@ private fun GameChrome(
                 Modifier.padding(start = 8.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    MtpIconBtn(Icons.Default.ArrowBack, "返回", onBack)
+                    MtpIconBtn(Icons.Default.ArrowBack, "返回", selected = chromeIndex == 0, onClick = onBack)
                     Spacer(Modifier.weight(1f))
-                    MtpIconBtn(Icons.Default.ScreenRotation, "横竖屏", onRotate)
-                    MtpIconBtn(Icons.Default.Fullscreen, "全屏", onFullscreen)
-                    MtpIconBtn(Icons.Default.Settings, "设置", onSettings)
+                    MtpIconBtn(Icons.Default.ScreenRotation, "横竖屏", selected = chromeIndex == 1, onClick = onRotate)
+                    MtpIconBtn(Icons.Default.Fullscreen, "全屏", selected = chromeIndex == 2, onClick = onFullscreen)
+                    MtpIconBtn(Icons.Default.Settings, "设置", selected = chromeIndex == 3, onClick = onSettings)
                 }
                 Text(
-                    text = title,
+                    text = if (chromeIndex >= 0) "$title  ·  A确认 B退出" else title,
                     color = MtpInk,
                     fontSize = 14.sp,
                     maxLines = 1,
@@ -241,13 +261,14 @@ private fun GameChrome(
 }
 
 @Composable
-private fun MtpIconBtn(icon: ImageVector, cd: String, onClick: () -> Unit) {
+private fun MtpIconBtn(icon: ImageVector, cd: String, selected: Boolean = false, onClick: () -> Unit) {
     Box(
         Modifier
             .padding(4.dp)
-            .size(40.dp)
-            .clip(RoundedCornerShape(12.dp))
+            .size(48.dp)
+            .clip(RoundedCornerShape(8.dp))
             .background(MtpPanel)
+            .then(if (selected) Modifier.border(2.dp, MtpAccent, RoundedCornerShape(8.dp)) else Modifier)
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
