@@ -85,7 +85,10 @@ class MainActivity : ComponentActivity() {
                                 onBack = { nav.popBackStack() },
                                 onOpenSettings = { nav.navigate("settings") },
                                 onStartGame = { url, title ->
-                                    startActivity(GameActivity.intent(this@MainActivity, url, title))
+                                    startActivity(
+                                        GameActivity.intent(this@MainActivity, url, title)
+                                            .addFlags(android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP or android.content.Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                                    )
                                 },
                             )
                         }

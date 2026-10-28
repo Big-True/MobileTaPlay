@@ -24,6 +24,11 @@ object WebViewPool {
             settings.javaScriptEnabled = true
             settings.domStorageEnabled = true
             settings.mediaPlaybackRequiresUserGesture = false
+            // Keep default viewport: overview/wide zoom shrank some towers to the top.
+            settings.useWideViewPort = false
+            settings.loadWithOverviewMode = false
+            settings.setSupportZoom(false)
+            settings.builtInZoomControls = false
         }
         cached = wv
         return wv

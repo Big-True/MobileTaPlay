@@ -23,6 +23,7 @@ import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import com.mobiletaplay.app.OrientationPrefs
 import com.mobiletaplay.app.data.GameCache
 import com.mobiletaplay.app.data.SettingsRepository
+import com.mobiletaplay.app.input.CoverFitJs
 import com.mobiletaplay.app.input.GamepadMapper
 import com.mobiletaplay.app.input.InjectJs
 import com.mobiletaplay.app.input.MappingStore
@@ -37,6 +38,8 @@ class GameActivity : ComponentActivity() {
     private var immersive = false
     private val stickHeld = mutableSetOf<String>()
     private lateinit var injector: InputInjector
+    /** Locked at create: handheld portrait panels used in landscape must not flip mid-game. */
+    private var gameLandscape = true
 
     companion object {
         fun intent(ctx: Context, url: String, title: String): Intent =
@@ -50,69 +53,101 @@ class GameActivity : ComponentActivity() {
         OrientationPrefs.apply(this)
         PadActions.reset()
         MappingStore.reset()
-        val url = intent.getStringExtra("url") ?: "https://h5mota.com/"
-        val title = intent.getStringExtra("title") ?: "MobileTaPlay"
+        loadFromIntent(intent)
+    }
 
-        webView = WebViewPool.acquire(this)
-        webView.setBackgroundColor(Color.parseColor("#0F1419"))
-        injector = InputInjector(webView)
-        injector.onInjectFailed = {
-            android.widget.Toast.makeText(this, "输入桥注入失败，请重进游戏", android.widget.Toast.LENGTH_LONG).show()
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        if (::webView.isInitialized) {
+            PadActions.reset()
+            MappingStore.reset()
+            loadFromIntent(intent)
         }
-        webView.webChromeClient = WebChromeClient()
-        webView.webViewClient = object : WebViewClient() {
-            override fun onPageFinished(view: WebView?, u: String?) {
-                super.onPageFinished(view, u)
-                injectBridge()
+    }
+
+    private fun loadFromIntent(intent: Intent?) {
+        val url = intent?.getStringExtra("url") ?: "https://h5mota.com/"
+        val title = intent?.getStringExtra("title") ?: "MobileTaPlay"
+
+        if (!::webView.isInitialized) {
+            webView = WebViewPool.acquire(this)
+            webView.setBackgroundColor(Color.parseColor("#0F1419"))
+            injector = InputInjector(webView)
+            injector.onInjectFailed = {
+                android.widget.Toast.makeText(this, "输入桥注入失败，请重进游戏", android.widget.Toast.LENGTH_LONG).show()
             }
-        }
+            webView.webChromeClient = WebChromeClient()
+            webView.webViewClient = object : WebViewClient() {
+                override fun onPageStarted(view: WebView?, u: String?, favicon: android.graphics.Bitmap?) {
+                    super.onPageStarted(view, u, favicon)
+                    webView.evaluateJavascript(CoverFitJs.install, null)
+                }
 
-        gameOverlay = GameOverlayView(
-            context = this,
-            title = title,
-            onBack = { handleBack() },
-            onRotate = { toggleOrientation() },
-            onToggleImmersive = { toggleImmersive() },
-            onSettings = { showSettingsDialog() },
-            onSendKeyCode = { code, down -> sendKeyCode(code, down) },
-        )
+                override fun onPageFinished(view: WebView?, u: String?) {
+                    super.onPageFinished(view, u)
+                    injectBridge()
+                    installCoverFit()
+                }
+            }
 
-        val root = FrameLayout(this).apply {
-            setBackgroundColor(Color.parseColor("#0F1419"))
-            addView(
-                webView,
-                FrameLayout.LayoutParams(
-                    FrameLayout.LayoutParams.MATCH_PARENT,
-                    FrameLayout.LayoutParams.MATCH_PARENT,
-                ),
+            gameOverlay = GameOverlayView(
+                context = this,
+                title = title,
+                onBack = { handleBack() },
+                onRotate = { toggleOrientation() },
+                onToggleImmersive = { toggleImmersive() },
+                onSettings = { showSettingsDialog() },
+                onSendKeyCode = { code, down -> sendKeyCode(code, down) },
             )
-            addView(gameOverlay)
-        }
-        if (android.os.Build.VERSION.SDK_INT >= 26) {
-            webView.defaultFocusHighlightEnabled = false
-            root.defaultFocusHighlightEnabled = false
-            root.isFocusable = true
-            root.isFocusableInTouchMode = true
-        }
-        setContentView(root)
-        OrientationPrefs.apply(this)
 
-        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
-            override fun handleOnBackPressed() = handleBack()
-        })
-
-        lifecycleScope.launch {
-            try {
-                val s = SettingsRepository.get(this@GameActivity).current()
-                gameOverlay.setPadVisible(s.virtualPad)
-                PadActions.applyMap(com.mobiletaplay.app.input.MappingCodec.decode(s.mappingJson))
-            } catch (_: Exception) {
+            val root = FrameLayout(this).apply {
+                setBackgroundColor(Color.parseColor("#0F1419"))
+                addView(
+                    webView,
+                    FrameLayout.LayoutParams(
+                        FrameLayout.LayoutParams.MATCH_PARENT,
+                        FrameLayout.LayoutParams.MATCH_PARENT,
+                    ),
+                )
+                addView(gameOverlay)
             }
+            if (android.os.Build.VERSION.SDK_INT >= 26) {
+                webView.defaultFocusHighlightEnabled = false
+                root.defaultFocusHighlightEnabled = false
+                root.isFocusable = true
+                root.isFocusableInTouchMode = true
+            }
+            setContentView(root)
+            gameLandscape = resources.configuration.orientation ==
+                android.content.res.Configuration.ORIENTATION_LANDSCAPE
+            pinGameOrientation()
+
+            onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+                override fun handleOnBackPressed() = handleBack()
+            })
+
+            lifecycleScope.launch {
+                try {
+                    val s = SettingsRepository.get(this@GameActivity).current()
+                    gameOverlay.setPadVisible(s.virtualPad)
+                    PadActions.applyMap(com.mobiletaplay.app.input.MappingCodec.decode(s.mappingJson))
+                } catch (_: Exception) {
+                }
+            }
+
+            applyImmersive(false)
+            applyChromeInsets()
+            GameCache.installOfflineLoader(webView, this)
+        } else {
+            // Hot-reload a different tower in the same activity.
+            try {
+                if (::gameOverlay.isInitialized) {
+                    // title refresh not critical
+                }
+            } catch (_: Exception) {}
         }
 
-        applyImmersive(false)
-        applyChromeInsets()
-        GameCache.installOfflineLoader(webView, this)
         val name = try {
             val u = java.net.URI(url)
             u.path.split('/').filter { it.isNotBlank() }.getOrNull(2) ?: ""
@@ -121,6 +156,7 @@ class GameActivity : ComponentActivity() {
         }
         val offline = name.isNotEmpty() && GameCache.isCached(this, name)
         webView.loadUrl(if (offline) GameCache.localUrl(name) else url)
+        webView.postDelayed({ try { webView.clearHistory() } catch (_: Exception) {} }, 800)
     }
 
     private fun handleBack() {
@@ -132,11 +168,14 @@ class GameActivity : ComponentActivity() {
             toggleImmersive()
             return
         }
-        if (webView.canGoBack()) webView.goBack() else finish()
+        // Always leave GameActivity. WebView history is reused by WebViewPool and
+        // goBack() would stack a second GameActivity (enter/exit twice).
+        finish()
     }
 
     private fun toggleOrientation() {
         OrientationPrefs.toggle(this)
+        window.decorView.postDelayed({ applyCoverFit() }, 250)
     }
 
     private fun showSettingsDialog() {
@@ -287,10 +326,47 @@ class GameActivity : ComponentActivity() {
         return super.dispatchKeyEvent(event)
     }
 
+    /**
+     * Landscape/portrait from the **window / configuration** aspect — never from
+     * displayMetrics alone (this handheld reports a 1080x1920 portrait panel
+     * while the logical display is landscape).
+     */
+    private fun pinGameOrientation() {
+        val w = webView.width
+        val h = webView.height
+        if (w >= 200 && h >= 200) {
+            // Laid out: trust the real WebView box. In immersive keep the aspect
+            // we started with if the window flips to the portrait panel.
+            if (!immersive) {
+                gameLandscape = w >= h
+            }
+        } else {
+            // Not laid out yet — configuration reflects the activity window.
+            gameLandscape = resources.configuration.orientation ==
+                android.content.res.Configuration.ORIENTATION_LANDSCAPE
+        }
+        requestedOrientation = if (gameLandscape) {
+            ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+        } else {
+            ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+        }
+    }
+
     private fun toggleImmersive() {
         immersive = !immersive
         applyImmersive(immersive)
         gameOverlay.setBarVisible(!immersive)
+        pinGameOrientation()
+        // Body size settles after chrome change — let engine resize on healthy metrics.
+        webView.post { applyCoverFit() }
+        webView.postDelayed({
+            pinGameOrientation()
+            applyCoverFit()
+        }, 500)
+        webView.postDelayed({
+            pinGameOrientation()
+            applyCoverFit()
+        }, 1200)
     }
 
     private fun applyImmersive(on: Boolean) {
@@ -321,10 +397,29 @@ class GameActivity : ComponentActivity() {
             lp.topMargin = top
             webView.layoutParams = lp
         }
+        webView.post { applyCoverFit() }
     }
 
     private fun injectBridge() {
         injector.injectBridge()
+    }
+
+    /** Always shrink-to-fit: show the entire game, never crop, never upscale. */
+    private fun fitMode(): String = "contain"
+
+    private fun installCoverFit() {
+        webView.evaluateJavascript(CoverFitJs.install, null)
+        applyCoverFit()
+        // mota-js lays out after first paint / asset load
+        window.decorView.postDelayed({ applyCoverFit() }, 400)
+        window.decorView.postDelayed({ applyCoverFit() }, 1500)
+        window.decorView.postDelayed({ applyCoverFit() }, 3000)
+    }
+
+    private fun applyCoverFit() {
+        if (::webView.isInitialized) {
+            webView.evaluateJavascript(CoverFitJs.apply(fitMode()), null)
+        }
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
@@ -333,8 +428,9 @@ class GameActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
-        OrientationPrefs.apply(this)
+        pinGameOrientation()
         webView.onResume()
+        webView.post { applyCoverFit() }
     }
 
     override fun onPause() {

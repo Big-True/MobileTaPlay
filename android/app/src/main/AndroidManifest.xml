@@ -22,6 +22,7 @@
         <activity
             android:name=".game.GameActivity"
             android:exported="false"
+            android:launchMode="singleTop"
             android:screenOrientation="fullSensor"
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|uiMode"
             android:hardwareAccelerated="true" />

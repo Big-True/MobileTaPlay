@@ -143,6 +143,10 @@ object GameCache {
                 return current.shouldOverrideUrlLoading(view, request)
             }
 
+            override fun onPageStarted(view: WebView?, u: String?, favicon: android.graphics.Bitmap?) {
+                current.onPageStarted(view, u, favicon)
+            }
+
             override fun onPageFinished(view: WebView?, u: String?) {
                 current.onPageFinished(view, u)
             }
