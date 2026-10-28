@@ -9,10 +9,13 @@ jobs:
         with:
           distribution: temurin
           java-version: 21
-      - uses: android-actions/setup-android@v3
       - name: Unit tests
         working-directory: android
-        run: ./gradlew testDebugUnitTest
+        env:
+          ANDROID_HOME: ${{ env.ANDROID_HOME || '/usr/local/lib/android/sdk' }}
+        run: ./gradlew testDebugUnitTest --no-daemon
       - name: Assemble debug
         working-directory: android
-        run: ./gradlew assembleDebug
+        env:
+          ANDROID_HOME: ${{ env.ANDROID_HOME || '/usr/local/lib/android/sdk' }}
+        run: ./gradlew assembleDebug --no-daemon
