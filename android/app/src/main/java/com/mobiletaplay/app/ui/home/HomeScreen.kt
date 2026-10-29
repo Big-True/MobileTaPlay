@@ -11,8 +11,13 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
@@ -33,6 +38,9 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.SuggestionChip
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -61,6 +69,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -73,6 +82,7 @@ import com.mobiletaplay.app.data.Tower
 import com.mobiletaplay.app.data.TowerApi
 import com.mobiletaplay.app.ui.common.ErrorPane
 import com.mobiletaplay.app.ui.common.PadIconButton
+import com.mobiletaplay.app.ui.common.padClickable
 import com.mobiletaplay.app.ui.common.padFocusRing
 import com.mobiletaplay.app.ui.common.rememberShellFocus
 import com.mobiletaplay.app.ui.common.shellNav
@@ -92,7 +102,9 @@ data class HomeUiState(
     val sort: String = "hot",
     val search: String = "",
     val searchMode: String = "title",
-    val tags: String = "",
+    val tags: List<String> = emptyList(),
+    val colors: List<Int> = emptyList(),
+    val filterOpen: Boolean = false,
     val sections: List<Int> = listOf(0, 1, 2),
     val hasMore: Boolean = true,
     val favorites: Set<String> = emptySet(),
@@ -132,13 +144,53 @@ class HomeViewModel(private val recentRepo: TowerStore) : ViewModel() {
         refresh()
     }
 
+    fun setSearchMode(m: String) {
+        _ui.value = _ui.value.copy(searchMode = m)
+        refresh()
+    }
+
+    fun toggleFilterOpen() {
+        _ui.value = _ui.value.copy(filterOpen = !_ui.value.filterOpen)
+    }
+
+    fun setSections(list: List<Int>) {
+        _ui.value = _ui.value.copy(sections = list.ifEmpty { listOf(0, 1, 2) })
+        refresh()
+    }
+
+    fun toggleTag(tag: String) {
+        val cur = _ui.value.tags.toMutableSet()
+        if (!cur.add(tag)) cur.remove(tag)
+        _ui.value = _ui.value.copy(tags = cur.toList())
+        refresh()
+    }
+
+    fun toggleColor(c: Int) {
+        val cur = _ui.value.colors.toMutableSet()
+        if (!cur.add(c)) cur.remove(c)
+        _ui.value = _ui.value.copy(colors = cur.toList())
+        refresh()
+    }
+
+    fun resetFilters() {
+        _ui.value = _ui.value.copy(
+            search = "",
+            searchMode = "title",
+            sort = "hot",
+            sections = listOf(0, 1, 2),
+            tags = emptyList(),
+            colors = emptyList(),
+        )
+        refresh()
+    }
+
     fun applyQuery(q: SearchQuery) {
         _ui.value = _ui.value.copy(
             search = q.keyword,
             searchMode = q.mode,
             sort = q.sort,
             sections = q.sections.toList(),
-            tags = q.tags,
+            tags = q.tags.split(",", "，", " ").map { it.trim() }.filter { it.isNotEmpty() },
         )
         refresh()
     }
@@ -173,12 +225,13 @@ class HomeViewModel(private val recentRepo: TowerStore) : ViewModel() {
         viewModelScope.launch {
             try {
                 val p = if (reset) 1 else page
-                val tagList = snap.tags.split(",", "，", " ").map { it.trim() }.filter { it.isNotEmpty() }
+                val tagList = snap.tags
                 val res = TowerApi.fetchTowers(
                     page = p,
                     sortmode = snap.sort,
                     sections = snap.sections,
                     tags = tagList,
+                    colors = snap.colors,
                     searchMode = snap.searchMode,
                     searchStr = snap.search,
                 )
@@ -241,6 +294,8 @@ fun HomeScreen(
     val drawerFocus = androidx.compose.ui.focus.FocusRequester()
     val firstCardFocus = androidx.compose.ui.focus.FocusRequester()
     val firstChipFocus = androidx.compose.ui.focus.FocusRequester()
+    var searchEditing by remember { mutableStateOf(false) }
+    val searchFocus = androidx.compose.ui.focus.FocusRequester()
     val gridCols = rememberGridColumns()
     val drawerItemFocus = remember {
         List(4) { androidx.compose.ui.focus.FocusRequester() }
@@ -345,28 +400,19 @@ fun HomeScreen(
                             onOpenList("cached")
                         },
                     )
-                    NavigationDrawerItem(
-                        label = { Text("高级搜索") },
-                        selected = false,
-                        modifier = Modifier.padFocusRing(focusRequester = drawerItemFocus[3], corner = 28.dp),
-                        onClick = {
-                            scope.launch { drawer.close() }
-                            onOpenSearch(SearchQuery())
-                        },
-                    )
                 }
             }
         },
     ) {
         Scaffold(
             modifier = Modifier
-                .focusProperties {
-                    // Entire chrome (topBar + content) disabled while drawer is open.
-                    canFocus = !drawer.isOpen
-                }
                 .shellNav(
                     onBack = {
-                        if (drawer.isOpen) scope.launch { drawer.close() }
+                        when {
+                            searchEditing -> searchEditing = false
+                            state.filterOpen -> vm.toggleFilterOpen()
+                            drawer.isOpen -> scope.launch { drawer.close() }
+                        }
                     },
                     onMenu = {
                         scope.launch {
@@ -428,40 +474,29 @@ fun HomeScreen(
                     .fillMaxSize()
                     ,
             ) {
-                Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp)
-                        .focusProperties {
-                            // Chip row → first tower card (only when composed)
-                            if (state.towers.isNotEmpty()) {
-                                down = firstCardFocus
-                            }
-                        },
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    listOf("hot" to "热门", "new" to "最新", "play" to "最多人玩", "rate" to "最多好评").forEach { (id, label) ->
-                        androidx.compose.material3.FilterChip(
-                            selected = state.sort == id,
-                            onClick = {
-                                vm.setSort(id)
-                                scope.launch { gridState.scrollToItem(0) }
-                            },
-                            modifier = Modifier.padFocusRing(
-                                focusRequester = if (id == "hot") firstChipFocus else null,
-                                corner = 8.dp,
-                                ringVInset = 6.dp,
-                            ),
-                            label = { Text(label) },
-                        )
-                    }
-                }
+                FilterPanel(
+                    state = state,
+                    vm = vm,
+                    firstChipFocus = firstChipFocus,
+                    firstCardFocus = firstCardFocus,
+                    searchEditing = searchEditing,
+                    onSearchEditingChange = { searchEditing = it },
+                )
 
                 when {
                     state.error.isNotEmpty() -> ErrorPane(state.error, onRetry = { vm.refresh() })
                     state.towers.isEmpty() && state.loading -> SkeletonGrid()
                     state.towers.isEmpty() -> ErrorPane("无结果", onRetry = { vm.refresh() })
-                    else -> TowerGrid(
+                    else -> androidx.compose.foundation.layout.Box(
+                        Modifier.then(
+                            if (state.filterOpen) {
+                                Modifier.focusProperties { canFocus = false }
+                            } else {
+                                Modifier
+                            },
+                        ),
+                    ) {
+                    TowerGrid(
                         towers = state.towers,
                         favorites = state.favorites,
                         loading = state.loading,
@@ -469,10 +504,12 @@ fun HomeScreen(
                         gridState = gridState,
                         firstCardFocus = firstCardFocus,
                         gridCols = gridCols,
+                        cardsEnabled = !state.filterOpen,
                         onLoadMore = { vm.loadMore() },
                         onOpen = { t -> vm.onOpen(t); onOpenDetail(t.name) },
                         onFav = { vm.toggleFavorite(it) },
                     )
+                    }
                 }
             }
         }
@@ -493,6 +530,210 @@ private fun SkeletonGrid() {
     }
 }
 
+private val FilterSorts = listOf(
+    "hot" to "最热",
+    "new" to "最新",
+    "map" to "最多楼层",
+    "comment" to "最多评论",
+    "lastcomment" to "最近评论",
+    "play" to "最多人玩",
+    "pass" to "最多通关",
+)
+
+private val FilterSections = listOf(0 to "原创", 1 to "小塔", 2 to "MOD")
+
+private val FilterTags = listOf(
+    "复刻塔", "处女作", "悬赏塔", "高难塔", "剧情向", "加点塔", "转换塔", "道具塔", "境界塔",
+    "技能塔", "平面塔", "连载塔", "已完结", "机关塔", "小游戏", "解密塔", "随机塔", "多角色", "联机游戏",
+)
+
+private val FilterColors = listOf(
+    0 to "蓝", 1 to "绿", 2 to "红", 3 to "橙", 4 to "白", 5 to "灰", 6 to "紫",
+)
+
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+@Composable
+private fun FilterPanel(
+    state: HomeUiState,
+    vm: HomeViewModel,
+    firstChipFocus: androidx.compose.ui.focus.FocusRequester,
+    firstCardFocus: androidx.compose.ui.focus.FocusRequester,
+    searchEditing: Boolean,
+    onSearchEditingChange: (Boolean) -> Unit,
+) {
+    val searchFocus = remember { androidx.compose.ui.focus.FocusRequester() }
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text("筛选", style = MaterialTheme.typography.titleSmall)
+            Text(
+                if (state.filterOpen) "收起 ▴" else "展开 ▾",
+                modifier = Modifier
+                    .padClickable(
+                        onClick = {
+                            val open = !state.filterOpen
+                            vm.toggleFilterOpen()
+                        },
+                        focusRequester = firstChipFocus,
+                        corner = 20.dp,
+                    )
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                color = MaterialTheme.colorScheme.primary,
+                style = MaterialTheme.typography.labelLarge,
+            )
+        }
+
+        if (!state.filterOpen) {
+            return
+        }
+
+        Column(
+            Modifier
+                .heightIn(max = 320.dp)
+                .verticalScroll(rememberScrollState())
+                .focusProperties {
+                    // keep focus inside expanded filter panel
+                    exit = { androidx.compose.ui.focus.FocusRequester.Cancel }
+                },
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+
+        // keyword: A/click enters edit (IME); B leaves edit
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            if (searchEditing) {
+                OutlinedTextField(
+                    value = state.search,
+                    onValueChange = { vm.setSearch(it) },
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(56.dp)
+                        .focusRequester(searchFocus),
+                    label = { Text("关键词") },
+                    singleLine = true,
+                )
+            } else {
+                Box(
+                    Modifier
+                        .weight(1f)
+                        .height(56.dp)
+                        .padClickable(
+                            onClick = {
+                                onSearchEditingChange(true)
+                                try {
+                                    searchFocus.requestFocus()
+                                } catch (_: Throwable) {
+                                }
+                            },
+                            corner = 8.dp,
+                        ),
+                    contentAlignment = Alignment.CenterStart,
+                ) {
+                    Text(
+                        if (state.search.isBlank()) "关键词…" else "关键词 ${state.search}",
+                        modifier = Modifier.padding(horizontal = 16.dp),
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = if (state.search.isBlank()) {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        } else {
+                            MaterialTheme.colorScheme.onSurface
+                        },
+                    )
+                }
+            }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            listOf("title" to "标题", "author" to "作者", "card" to "简介").forEach { (id, label) ->
+                FilterChip(
+                    selected = state.searchMode == id,
+                    onClick = { vm.setSearchMode(id) },
+                    modifier = Modifier.padFocusRing(corner = 8.dp, ringVInset = 6.dp),
+                    label = { Text(label) },
+                )
+            }
+        }
+
+        Text("排序", style = MaterialTheme.typography.labelLarge)
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            FilterSorts.forEach { (id, label) ->
+                FilterChip(
+                    selected = state.sort == id,
+                    onClick = { vm.setSort(id) },
+                    modifier = Modifier.padFocusRing(corner = 8.dp, ringVInset = 6.dp),
+                    label = { Text(label) },
+                )
+            }
+        }
+
+        Text("大类", style = MaterialTheme.typography.labelLarge)
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            FilterSections.forEach { (id, label) ->
+                FilterChip(
+                    selected = state.sections.contains(id),
+                    onClick = {
+                        val s = state.sections.toMutableSet()
+                        if (!s.add(id) && s.size > 1) s.remove(id)
+                        vm.setSections(s.toList().sorted())
+                    },
+                    modifier = Modifier.padFocusRing(corner = 8.dp, ringVInset = 6.dp),
+                    label = { Text(label) },
+                )
+            }
+        }
+
+        Text("标签", style = MaterialTheme.typography.labelLarge)
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            FilterTags.forEach { tag ->
+                FilterChip(
+                    selected = state.tags.contains(tag),
+                    onClick = { vm.toggleTag(tag) },
+                    modifier = Modifier.padFocusRing(corner = 8.dp, ringVInset = 6.dp),
+                    label = { Text(tag, style = MaterialTheme.typography.labelSmall) },
+                )
+            }
+        }
+
+        Text("颜色", style = MaterialTheme.typography.labelLarge)
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            FilterColors.forEach { (id, label) ->
+                FilterChip(
+                    selected = state.colors.contains(id),
+                    onClick = { vm.toggleColor(id) },
+                    modifier = Modifier.padFocusRing(corner = 8.dp, ringVInset = 6.dp),
+                    label = { Text(label) },
+                )
+            }
+        }
+
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                TextButton(
+                    onClick = { vm.resetFilters() },
+                    modifier = Modifier
+                        .padFocusRing(corner = 20.dp)
+                        .focusProperties {
+                            down = androidx.compose.ui.focus.FocusRequester.Cancel
+                        },
+                ) { Text("重置") }
+            }
+        }
+    }
+}
+
 @Composable
 private fun TowerGrid(
     towers: List<Tower>,
@@ -502,6 +743,7 @@ private fun TowerGrid(
     gridState: androidx.compose.foundation.lazy.grid.LazyGridState,
     firstCardFocus: androidx.compose.ui.focus.FocusRequester? = null,
     gridCols: Int = 3,
+    cardsEnabled: Boolean = true,
     onLoadMore: () -> Unit,
     onOpen: (Tower) -> Unit,
     onFav: (String) -> Unit,

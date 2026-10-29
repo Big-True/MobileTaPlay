@@ -22,6 +22,7 @@ object TowerApi {
         sortmode: String = "hot",
         sections: List<Int> = listOf(0, 1, 2),
         tags: List<String> = emptyList(),
+        colors: List<Int> = emptyList(),
         searchMode: String = "title",
         searchStr: String = "",
     ): TowerPage = withContext(Dispatchers.IO) {
@@ -30,7 +31,7 @@ object TowerApi {
             .addQueryParameter("sortmode", sortmode)
             .addQueryParameter("sections", JSONArray(sections).toString())
             .addQueryParameter("tags", JSONArray(tags).toString())
-            .addQueryParameter("colors", "[]")
+            .addQueryParameter("colors", JSONArray(colors).toString())
         if (searchStr.isNotBlank()) {
             // h5mota API uses mode name as query key: title= / author= / card=
             val key = when (searchMode) {
@@ -117,6 +118,77 @@ object TowerApi {
             }
             else -> emptyList()
         }
+    }
+
+    /** Load tower meta + comments from the tower page SSR blob. */
+    suspend fun fetchTowerPage(name: String): Pair<Tower?, List<TowerComment>> = withContext(Dispatchers.IO) {
+        try {
+            val req = Request.Builder()
+                .url("https://h5mota.com/tower/?name=" + java.net.URLEncoder.encode(name, "UTF-8"))
+                .header("User-Agent", "Mozilla/5.0 (Linux; Android 13) Mobile MobileTaPlay")
+                .header("Accept", "text/html")
+                .build()
+            val html = client.newCall(req).execute().use { it.body?.string().orEmpty() }
+            val marker = "data-ssr=\"tower\" type=\"application/json\">"
+            val start = html.indexOf(marker)
+            if (start < 0) return@withContext null to emptyList()
+            val bodyStart = start + marker.length
+            val end = html.indexOf("</script>", bodyStart)
+            if (end < 0) return@withContext null to emptyList()
+            val obj = JSONObject(html.substring(bodyStart, end).trim())
+            val tower = parseTowerFromSsr(obj)
+            val comments = obj.optJSONArray("comments")?.let { parseComments(it) } ?: emptyList()
+            tower to comments
+        } catch (_: Exception) {
+            null to emptyList()
+        }
+    }
+
+    private fun parseTowerFromSsr(root: JSONObject): Tower? {
+        val tw = root.optJSONObject("tower") ?: JSONObject()
+        val rating = root.optJSONObject("rating") ?: JSONObject()
+        val name = tw.optString("name").ifBlank { root.optString("name") }
+        if (name.isBlank()) return null
+
+        // rating.difficultyrating = [score, ...]
+        val diffArr = rating.optJSONArray("difficultyrating")
+            ?: rating.optJSONObject("stat")?.optJSONArray("difficultyrating")
+        val difficulty = diffArr?.optDouble(0)?.takeIf { !it.isNaN() }?.toString()
+
+        val commentCount = root.optJSONArray("comments")?.length()
+            ?: tw.opt("comment")?.toString()?.toIntOrNull()
+            ?: 0
+
+        return Tower(
+            id = tw.optString("id").toIntOrNull() ?: root.optString("id").toIntOrNull() ?: name.hashCode(),
+            name = name,
+            title = tw.optString("title").ifBlank { name },
+            author = tw.optString("author"),
+            image = tw.optString("image").ifBlank { null },
+            floors = tw.optString("floors").ifBlank { null },
+            people = tw.optString("people").ifBlank { null },
+            win = tw.optString("win").ifBlank { null },
+            rate = tw.optString("rate").ifBlank { null },
+            tags = parseStringArray(tw.opt("tags")),
+            description = tw.optString("description").ifBlank { null },
+            text = tw.optString("text").ifBlank { null },
+            content = tw.optString("content").ifBlank { null },
+            link = tw.optString("link").ifBlank { null },
+            previews = parseStringArray(tw.opt("previews")),
+            commentCount = commentCount,
+            thumbUp = tw.optString("thumb_up").toIntOrNull() ?: 0,
+            difficulty = difficulty,
+            uploadTime = tw.optString("uploadtime").ifBlank { null },
+            updateTime = formatMaybeTime(tw.optString("updatetime").ifBlank { tw.optString("createtime") }),
+            recommend = tw.optBoolean("recommend"),
+            similarIds = emptyList(),
+            section = tw.optString("section").toIntOrNull() ?: 0,
+            classify = tw.optString("tag").ifBlank { null },
+            color = root.optJSONObject("rating")?.optJSONArray("colorrate")?.optInt(0),
+            competition = tw.optString("competition").toIntOrNull() ?: 0,
+            difficulties = emptyList(),
+            endings = emptyList(),
+        )
     }
 
     /**

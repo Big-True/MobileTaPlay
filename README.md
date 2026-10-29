@@ -2,7 +2,7 @@
 
 **第三方 Android 魔塔客户端** — 加载 [HTML5 魔塔广场](https://h5mota.com/)（h5mota）在线塔，主打 **手柄 + 触屏**。
 
-**当前版本：`0.2.4`** · [下载 APK](https://github.com/Big-True/MobileTaPlay/releases/latest)
+**当前版本：`0.2.5`** · [下载 APK](https://github.com/Big-True/MobileTaPlay/releases/latest)
 
 > 纯第三方项目，与 h5mota 官方、mota-js 作者无隶属关系。  
 > 游戏内容版权归各塔作者；引擎 [mota-js](https://github.com/ckcz123/mota-js) 为 BSD-3-Clause。  
@@ -11,17 +11,16 @@
 ## 特性
 
 **内容**
-- 瀑布流首页 · 详情（评分/在玩/通关/层数/点赞、难度、标签、作者、简介）
+- 瀑布流首页 · **筛选面板**（搜索 / 排序 / 大类 / 标签 / 颜色）
+- 详情：统计、标签、作者、简介、收藏
 - 评论页 · 通关信息页 · 作者作品搜索
-- 搜索 · 最近 / 星标收藏 / 离线缓存
-- 卡片列数 2 / 3 / 4 可设 · 详情内收藏
-- 无账号，打开即用
+- 最近 / 星标收藏 / 离线缓存 · 卡片列数 2/3/4
 
 **手柄**
-- 壳层纯手柄：焦点环、侧栏、评论/帮助滚动、L1/R1 切图
+- 壳层纯手柄：焦点环、筛选面板、评论/帮助滚动
 - 游戏内映射可改绑 · 虚拟键盘
 - Select 三态：窗口 → 全屏 → 顶栏焦点
-- 首页「?」帮助页：按键 → 操作 速查
+- 首页「?」帮助：按键 → 操作 速查
 
 **平台**
 - Android minSdk 26 · Kotlin + Jetpack Compose
@@ -44,7 +43,7 @@ adb install -r ..\dist\MobileTaPlay.apk
 | 场景 | 按键 | 操作 |
 |---|---|---|
 | 通用 | 十字 / A / B | 移动焦点 / 确认 / 返回 |
-| 首页 | Y / Start | 侧栏 |
+| 筛选 | B | 先退出搜索，再收起筛选 |
 | 详情 | L1 / R1 | 截图切换 |
 | 游戏 | Select | 窗口 ↔ 全屏 ↔ 顶栏焦点 |
 | 游戏 | 其余 | 设置·手柄映射 |
@@ -65,7 +64,6 @@ cd android
 .\gradlew :app:assembleDebug
 ```
 
-CI：单测 + `assembleDebug`；Tag / 手动 **Release** 上传 APK。  
 **约定**：功能提交递增 `versionName` / `versionCode`。
 
 ## 仓库结构

@@ -45,11 +45,12 @@ fun TowerCard(
     onClick: () -> Unit,
     onFav: () -> Unit,
     focusRequester: androidx.compose.ui.focus.FocusRequester? = null,
+    enabled: Boolean = true,
 ) {
     Card(
         Modifier
             .fillMaxWidth()
-            .padClickable(onClick = onClick, focusRequester = focusRequester),
+            .padClickable(enabled = enabled, onClick = onClick, focusRequester = focusRequester),
     ) {
         Column {
             Box(Modifier.height(160.dp)) {

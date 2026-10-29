@@ -277,8 +277,14 @@ fun Modifier.padClickable(
     val interactionFocused by interaction.collectIsFocusedAsState()
     return this
         .bringIntoViewRequester(bring)
-        .then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier)
-        .focusable(enabled = enabled, interactionSource = interaction)
+        .then(if (enabled && focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier)
+        .then(
+            if (enabled) {
+                Modifier.focusable(interactionSource = interaction)
+            } else {
+                Modifier
+            }
+        )
         .onFocusChanged { st ->
             focused = st.isFocused
             if (st.isFocused) {
@@ -292,7 +298,17 @@ fun Modifier.padClickable(
             }
         }
         .clip(RoundedCornerShape(corner))
-        .clickable(enabled = enabled, interactionSource = interaction, indication = ripple(), onClick = onClick)
+        .then(
+            if (enabled) {
+                Modifier.clickable(
+                    interactionSource = interaction,
+                    indication = ripple(),
+                    onClick = onClick,
+                )
+            } else {
+                Modifier
+            }
+        )
         .focusRing(focused || interactionFocused, corner = corner)
 }
 

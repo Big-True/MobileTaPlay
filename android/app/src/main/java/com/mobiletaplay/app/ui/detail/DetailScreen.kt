@@ -67,34 +67,50 @@ fun DetailScreen(
 
     LaunchedEffect(name) {
         try {
-            // Local snapshot first (cached list / offline)
+            // 1) tower page SSR (always has meta + comments)
+            val (ssrTower, _) = withContext(Dispatchers.IO) {
+                TowerApi.fetchTowerPage(name)
+            }
             val local = withContext(Dispatchers.IO) {
                 TowerStore.get(ctx).snapshot(name)
             }
+            if (ssrTower != null) {
+                // SSR has people/win/comments/difficulty; snapshot fills image/floors/rate/previews
+                val base = local ?: ssrTower
+                tower = base.copy(
+                    title = ssrTower.title.ifBlank { base.title },
+                    author = ssrTower.author.ifBlank { base.author },
+                    people = ssrTower.people ?: base.people,
+                    win = ssrTower.win ?: base.win,
+                    commentCount = if (ssrTower.commentCount > 0) ssrTower.commentCount else base.commentCount,
+                    difficulty = ssrTower.difficulty ?: base.difficulty,
+                    image = ssrTower.image ?: base.image,
+                    floors = ssrTower.floors ?: base.floors,
+                    rate = ssrTower.rate ?: base.rate,
+                    previews = ssrTower.previews.ifEmpty { base.previews },
+                    tags = if (ssrTower.tags.isNotEmpty()) ssrTower.tags else base.tags,
+                    description = ssrTower.description ?: base.description,
+                    text = ssrTower.text ?: base.text,
+                    content = ssrTower.content ?: base.content,
+                    thumbUp = if (ssrTower.thumbUp > 0) ssrTower.thumbUp else base.thumbUp,
+                    uploadTime = ssrTower.uploadTime ?: base.uploadTime,
+                    updateTime = ssrTower.updateTime ?: base.updateTime,
+                    recommend = ssrTower.recommend || base.recommend,
+                )
+                return@LaunchedEffect
+            }
             if (local != null) {
                 tower = local
-                // keep loading in background so stats (e.g. comment count) stay fresh
             }
-            for (p in 1..8) {
-                val res = withContext(Dispatchers.IO) {
-                    TowerApi.fetchTowers(page = p, sortmode = "hot")
-                }
-                val hit = res.towers.firstOrNull { it.name == name }
-                if (hit != null) {
-                    tower = hit
-                    return@LaunchedEffect
-                }
-            }
-            // last resort: file-only cache dir
-            val ctx2 = ctx
-            val has = com.mobiletaplay.app.data.GameCache.isCached(ctx2, name)
-            if (has) {
+            // 3) cached files
+            if (tower == null && com.mobiletaplay.app.data.GameCache.isCached(ctx, name)) {
                 tower = Tower(id = name.hashCode(), name = name, title = name, author = "已缓存")
-            } else {
+            }
+            if (tower == null) {
                 error = "未找到该塔"
             }
         } catch (e: Exception) {
-            error = e.message ?: "加载失败"
+            if (tower == null) error = e.message ?: "加载失败"
         }
     }
 
