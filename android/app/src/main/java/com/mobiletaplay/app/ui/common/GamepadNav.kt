@@ -52,7 +52,7 @@ import kotlinx.coroutines.launch
  */
 object ShellPad {
     @Volatile
-    var onDirection: ((FocusDirection) -> Unit)? = null
+    var onDirection: ((FocusDirection) -> Boolean)? = null
 
     @Volatile
     var onBack: (() -> Unit)? = null
@@ -78,16 +78,13 @@ object ShellPad {
         if (action != AndroidKeyEvent.ACTION_DOWN) return false
         return when (keyCode) {
             AndroidKeyEvent.KEYCODE_DPAD_UP -> {
-                if (onScroll?.invoke(true) == true) true
-                else {
-                    onDirection?.invoke(FocusDirection.Up); true
-                }
+                // prefer focus, fall back to scroll
+                if (onDirection?.invoke(FocusDirection.Up) == true) true
+                else onScroll?.invoke(true) ?: false
             }
             AndroidKeyEvent.KEYCODE_DPAD_DOWN -> {
-                if (onScroll?.invoke(false) == true) true
-                else {
-                    onDirection?.invoke(FocusDirection.Down); true
-                }
+                if (onDirection?.invoke(FocusDirection.Down) == true) true
+                else onScroll?.invoke(false) ?: false
             }
             AndroidKeyEvent.KEYCODE_DPAD_LEFT -> {
                 onDirection?.invoke(FocusDirection.Left); true
@@ -119,10 +116,11 @@ object ShellPad {
     }
 }
 
-private fun safeMoveFocus(focusManager: FocusManager, dir: FocusDirection) {
-    try {
+private fun safeMoveFocus(focusManager: FocusManager, dir: FocusDirection): Boolean {
+    return try {
         focusManager.moveFocus(dir)
     } catch (_: Throwable) {
+        false
     }
 }
 
@@ -159,16 +157,12 @@ fun Modifier.shellNav(
         if (e.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
         when (e.key) {
             Key.DirectionUp -> {
-                if (onScroll?.invoke(true) == true) true
-                else {
-                    safeMoveFocus(focusManager, FocusDirection.Up); true
-                }
+                if (safeMoveFocus(focusManager, FocusDirection.Up)) true
+                else onScroll?.invoke(true) == true
             }
             Key.DirectionDown -> {
-                if (onScroll?.invoke(false) == true) true
-                else {
-                    safeMoveFocus(focusManager, FocusDirection.Down); true
-                }
+                if (safeMoveFocus(focusManager, FocusDirection.Down)) true
+                else onScroll?.invoke(false) == true
             }
             Key.DirectionLeft -> {
                 safeMoveFocus(focusManager, FocusDirection.Left); true

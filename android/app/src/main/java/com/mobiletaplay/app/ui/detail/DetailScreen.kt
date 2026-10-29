@@ -52,6 +52,8 @@ fun DetailScreen(
     onOpenSettings: () -> Unit,
     onStartGame: (url: String, title: String) -> Unit,
     onOpenAuthor: (String) -> Unit = {},
+    onOpenComments: (String, String) -> Unit = { _, _ -> },
+    onOpenClearInfo: (String, List<String>, String) -> Unit = { _, _, _ -> },
 ) {
     val scope = rememberCoroutineScope()
     val ctx = LocalContext.current
@@ -59,6 +61,7 @@ fun DetailScreen(
     var tower by remember { mutableStateOf<Tower?>(null) }
     var error by remember { mutableStateOf("") }
     var shotIndex by remember { mutableIntStateOf(0) }
+    val pageScroll = rememberScrollState()
     var expanded by remember { mutableStateOf(false) }
     var shot by remember { mutableIntStateOf(0) }
 
@@ -70,7 +73,7 @@ fun DetailScreen(
             }
             if (local != null) {
                 tower = local
-                return@LaunchedEffect
+                // keep loading in background so stats (e.g. comment count) stay fresh
             }
             for (p in 1..8) {
                 val res = withContext(Dispatchers.IO) {
@@ -98,15 +101,29 @@ fun DetailScreen(
     Scaffold(
         modifier = Modifier.shellNav(
             onBack = onBack,
+            onScroll = { up ->
+                val delta = 320
+                val target = if (up) {
+                    (pageScroll.value - delta).coerceAtLeast(0)
+                } else {
+                    (pageScroll.value + delta).coerceAtMost(pageScroll.maxValue)
+                }
+                if (target == pageScroll.value) {
+                    false
+                } else {
+                    scope.launch { pageScroll.animateScrollTo(target) }
+                    true
+                }
+            },
             onL = {
-                val n = tower?.previews?.size?.takeIf { it > 1 }
-                    ?: if (tower?.image != null) 1 else 0
-                if (n > 1) shotIndex = (shotIndex - 1 + n) % n
+                val list = tower?.previews?.takeIf { it.isNotEmpty() }
+                    ?: listOfNotNull(tower?.image)
+                if (list.size > 1) shotIndex = (shotIndex - 1 + list.size) % list.size
             },
             onR = {
-                val n = tower?.previews?.size?.takeIf { it > 1 }
-                    ?: if (tower?.image != null) 1 else 0
-                if (n > 1) shotIndex = (shotIndex + 1) % n
+                val list = tower?.previews?.takeIf { it.isNotEmpty() }
+                    ?: listOfNotNull(tower?.image)
+                if (list.size > 1) shotIndex = (shotIndex + 1) % list.size
             },
         ),
         topBar = {
@@ -167,20 +184,20 @@ fun DetailScreen(
                         Modifier
                             .padding(pad)
                             .fillMaxSize()
-                            .verticalScroll(rememberScrollState()),
+                            .verticalScroll(pageScroll),
                     ) {
                         DetailMedia(shots, shotIndex, Modifier.weight(0.42f))
-                        DetailInfo(t, shots, shotIndex, onSelect = { shotIndex = it }, onOpenAuthor = onOpenAuthor, Modifier.weight(0.58f))
+                        DetailInfo(t, shots, shotIndex, onSelect = { shotIndex = it }, onOpenAuthor = onOpenAuthor, onOpenComments = onOpenComments, onOpenClearInfo = onOpenClearInfo, Modifier.weight(0.58f))
                     }
                 } else {
                     Column(
                         Modifier
                             .padding(pad)
                             .fillMaxSize()
-                            .verticalScroll(rememberScrollState()),
+                            .verticalScroll(pageScroll),
                     ) {
                         DetailMedia(shots, shotIndex, Modifier.fillMaxWidth())
-                        DetailInfo(t, shots, shotIndex, onSelect = { shotIndex = it }, onOpenAuthor = onOpenAuthor, Modifier.fillMaxWidth())
+                        DetailInfo(t, shots, shotIndex, onSelect = { shotIndex = it }, onOpenAuthor = onOpenAuthor, onOpenComments = onOpenComments, onOpenClearInfo = onOpenClearInfo, Modifier.fillMaxWidth())
                     }
                 }
             }
@@ -248,6 +265,8 @@ private fun DetailInfo(
     index: Int,
     onSelect: (Int) -> Unit,
     onOpenAuthor: (String) -> Unit = {},
+    onOpenComments: (String, String) -> Unit = { _, _ -> },
+    onOpenClearInfo: (String, List<String>, String) -> Unit = { _, _, _ -> },
     modifier: Modifier = Modifier,
 ) {
     val favContext = LocalContext.current
@@ -274,35 +293,71 @@ private fun DetailInfo(
             }
         }
         Spacer(Modifier.height(4.dp))
-        TextButton(
-            onClick = { if (t.author.isNotBlank()) onOpenAuthor(t.author) },
-            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 0.dp),
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(
-                "作者 " + (t.author.ifBlank { "未知" }),
-                color = MaterialTheme.colorScheme.primary,
-                style = MaterialTheme.typography.bodyMedium,
-            )
+            TextButton(
+                onClick = { if (t.author.isNotBlank()) onOpenAuthor(t.author) },
+                modifier = Modifier.padFocusRing(corner = 20.dp),
+            ) {
+                Text(
+                    "作者 " + (t.author.ifBlank { "未知" }),
+                    color = MaterialTheme.colorScheme.primary,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            }
+            TextButton(
+                onClick = { onOpenComments(t.name, t.title) },
+                modifier = Modifier.padFocusRing(corner = 20.dp),
+            ) {
+                Text("评论(${t.commentCount})")
+            }
         }
-        Spacer(Modifier.height(8.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            Stat("评分", t.rate ?: "—")
-            Stat("在玩", t.people ?: "0")
-            Stat("通关", t.win ?: "0")
-            Stat("层数", t.floors ?: "?")
-            Stat("评论", t.commentCount.toString())
-            Stat("点赞", t.thumbUp.toString())
+        Spacer(Modifier.height(4.dp))
+        Row(Modifier.fillMaxWidth()) {
+            Stat("评分", t.rate ?: "—", Modifier.weight(1f))
+            Stat("层数", t.floors ?: "?", Modifier.weight(1f))
         }
-        if (!t.difficulty.isNullOrBlank()) {
-            Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(6.dp))
+        Row(Modifier.fillMaxWidth()) {
+            Stat("在玩", t.people ?: "0", Modifier.weight(1f))
+            Stat("通关", t.win ?: "0", Modifier.weight(1f))
+            Stat("点赞", t.thumbUp.toString(), Modifier.weight(1f))
+        }
+        Spacer(Modifier.height(6.dp))
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            val diffLabel = buildString {
+                append("难度系数 ")
+                append(t.difficulty ?: "—")
+                if (t.competition != 0) append(" · 比赛")
+            }
             Text(
-                "难度系数 " + t.difficulty,
+                diffLabel,
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.weight(1f, fill = false),
             )
+            TextButton(
+                onClick = {
+                    onOpenClearInfo(
+                        t.title,
+                        t.endings.filter { it.isNotBlank() },
+                        t.content.orEmpty(),
+                    )
+                },
+                modifier = Modifier.padFocusRing(corner = 20.dp),
+            ) {
+                Text("查看通关信息")
+            }
         }
         if (t.tags.isNotEmpty()) {
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(8.dp))
             androidx.compose.foundation.layout.FlowRow(
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
             ) {
@@ -314,8 +369,8 @@ private fun DetailInfo(
                 }
             }
         }
-        val intro = plain(t.content?.ifBlank { null } ?: t.description ?: t.text)
-        Spacer(Modifier.height(10.dp))
+        val intro = plain(t.description ?: t.text)
+        Spacer(Modifier.height(8.dp))
         Row(
             Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -347,29 +402,58 @@ private fun DetailInfo(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         if (!t.uploadTime.isNullOrBlank() || !t.updateTime.isNullOrBlank()) {
-            Spacer(Modifier.height(12.dp))
-            Text(
-                listOfNotNull(
-                    t.uploadTime?.let { "发布 $it" },
-                    t.updateTime?.let { "更新 ${it.take(10)}" },
-                ).joinToString(" · "),
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.outline,
-            )
+            Spacer(Modifier.height(10.dp))
+            Row(Modifier.fillMaxWidth()) {
+                Column(Modifier.weight(1f)) {
+                    Text("发布", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline)
+                    Text(
+                        normalizeTime(t.uploadTime),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Column(Modifier.weight(1f)) {
+                    Text("更新", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline)
+                    Text(
+                        normalizeTime(t.updateTime),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
         }
     }
 }
 
 @Composable
-private fun Stat(label: String, value: String) {
-    Card(Modifier.widthIn(min = 72.dp)) {
-        Column(
-            Modifier.padding(10.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Text(value, style = MaterialTheme.typography.titleMedium)
-            Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+private fun Stat(label: String, value: String, modifier: Modifier = Modifier) {
+    Box(modifier.padding(horizontal = 3.dp), contentAlignment = Alignment.Center) {
+        Card(Modifier.fillMaxWidth()) {
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Text(value, style = MaterialTheme.typography.titleMedium)
+                Text(
+                    label,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
+    }
+}
+
+private fun normalizeTime(raw: String?): String {
+    if (raw.isNullOrBlank()) return "—"
+    // unify to yyyy-MM-dd HH:mm
+    val s = raw.trim()
+    return when {
+        s.length >= 16 -> s.take(16)
+        s.length >= 10 -> s.take(10) + " 00:00"
+        else -> s
     }
 }
 
@@ -427,7 +511,7 @@ private fun CacheButton(tower: Tower?, onDeleted: () -> Unit = {}) {
                 }
             }
         },
-        modifier = Modifier.padFocusRing(corner = 8.dp),
+        modifier = Modifier.padFocusRing(corner = 20.dp),
     ) {
         Text(if (busy) "…" else if (cached) "删除缓存" + sizeLabel else "缓存")
     }

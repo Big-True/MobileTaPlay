@@ -69,14 +69,23 @@ object TowerApi {
                         link = t.optString("link").ifBlank { null },
                         previews = parseStringArray(t.opt("previews")),
                         content = t.optString("content").ifBlank { null },
-                        commentCount = t.optInt("comment"),
+                        commentCount = t.opt("comment")?.toString()?.trim()?.toIntOrNull()
+                            ?: t.optInt("comment"),
                         thumbUp = t.optInt("thumb_up"),
                         difficulty = t.optString("difficultrate").ifBlank { null },
                         uploadTime = t.optString("uploadtime").ifBlank { null },
-                        updateTime = t.optString("lasttime").ifBlank { t.optString("updatetime").ifBlank { null } },
+                        updateTime = formatMaybeTime(
+                            t.optString("lasttime").ifBlank { t.optString("updatetime") }
+                        ),
                         recommend = t.optBoolean("recommend"),
                         similarIds = t.optString("similar_tower_ids")
                             .split(",").mapNotNull { it.trim().toIntOrNull() },
+                        section = t.optInt("section"),
+                        classify = t.optString("classify").ifBlank { null },
+                        color = if (t.has("color")) t.optInt("color") else null,
+                        competition = t.optInt("competition"),
+                        difficulties = parseStringArray(t.opt("difficultyList")),
+                        endings = parseStringArray(t.opt("endingList")),
                     )
                 )
             }
@@ -108,6 +117,64 @@ object TowerApi {
             }
             else -> emptyList()
         }
+    }
+
+    /**
+     * Comments live in the tower page SSR blob (discussion API is separately gated).
+     * Parses data-ssr="tower" JSON.
+     */
+    suspend fun fetchComments(name: String): List<TowerComment> = withContext(Dispatchers.IO) {
+        try {
+            val req = Request.Builder()
+                .url("https://h5mota.com/tower/?name=" + java.net.URLEncoder.encode(name, "UTF-8"))
+                .header("User-Agent", "Mozilla/5.0 (Linux; Android 13) Mobile MobileTaPlay")
+                .header("Accept", "text/html")
+                .build()
+            val html = client.newCall(req).execute().use { it.body?.string().orEmpty() }
+            val marker = "data-ssr=\"tower\" type=\"application/json\">"
+            val start = html.indexOf(marker)
+            if (start < 0) return@withContext emptyList()
+            val bodyStart = start + marker.length
+            val end = html.indexOf("</script>", bodyStart)
+            if (end < 0) return@withContext emptyList()
+            val obj = JSONObject(html.substring(bodyStart, end).trim())
+            val arr = obj.optJSONArray("comments") ?: return@withContext emptyList()
+            parseComments(arr)
+        } catch (_: Exception) {
+            emptyList()
+        }
+    }
+
+    private fun parseComments(arr: JSONArray): List<TowerComment> = buildList {
+        for (i in 0 until arr.length()) {
+            val c = arr.optJSONObject(i) ?: continue
+            val a = c.optJSONObject("author")
+            val replies = c.optJSONArray("replies")?.let { parseComments(it) } ?: emptyList()
+            add(
+                TowerComment(
+                    id = c.optInt("id"),
+                    authorName = a?.optString("name") ?: "匿名",
+                    authorId = a?.optInt("id") ?: 0,
+                    text = c.optString("comment"),
+                    timestamp = formatTime(c.optLong("timestamp")),
+                    loveNum = c.optInt("loveNum"),
+                    replies = replies,
+                )
+            )
+        }
+    }
+
+    /** Accepts unix seconds or already-formatted date string. */
+    private fun formatMaybeTime(raw: String?): String? {
+        if (raw.isNullOrBlank()) return null
+        val n = raw.trim().toLongOrNull()
+        return if (n != null && n > 1_000_000_000L) formatTime(n) else raw
+    }
+
+    private fun formatTime(sec: Long): String {
+        if (sec <= 0) return ""
+        val sdf = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.getDefault())
+        return sdf.format(java.util.Date(sec * 1000))
     }
 
     fun playUrl(tower: Tower): String {

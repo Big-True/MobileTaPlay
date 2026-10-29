@@ -20,6 +20,9 @@ import com.mobiletaplay.app.ui.list.ListMode
 import com.mobiletaplay.app.ui.list.ListScreen
 import com.mobiletaplay.app.ui.search.SearchScreen
 import com.mobiletaplay.app.ui.search.SearchQuery
+import com.mobiletaplay.app.ui.comments.CommentsScreen
+import com.mobiletaplay.app.ui.detail.ClearInfoScreen
+import com.mobiletaplay.app.ui.help.HelpScreen
 import com.mobiletaplay.app.ui.settings.SettingsScreen
 import com.mobiletaplay.app.ui.theme.MobileTaPlayTheme
 
@@ -106,6 +109,7 @@ class MainActivity : ComponentActivity() {
                                 onOpenSettings = { nav.navigate("settings") },
                                 onOpenSearch = { nav.navigate("search") },
                                 onOpenList = { m -> nav.navigate("list/$m") },
+                                onOpenHelp = { nav.navigate("help") },
                             )
                         }
                         composable(
@@ -127,7 +131,60 @@ class MainActivity : ComponentActivity() {
                                         "searchlist?mode=author&sort=hot&k=" + Uri.encode(author)
                                     )
                                 },
+                                onOpenComments = { n, title ->
+                                    nav.navigate(
+                                        "comments/" + Uri.encode(n) + "/" + Uri.encode(title)
+                                    )
+                                },
+                                onOpenClearInfo = { title, endings, content ->
+                                    val joined = endings.joinToString("\u0001")
+                                    nav.navigate(
+                                        "clearinfo/" + Uri.encode(title) + "/" +
+                                            Uri.encode(joined) + "/" + Uri.encode(content.take(4000))
+                                    )
+                                },
                             )
+                        }
+                        composable(
+                            "comments/{n}/{title}",
+                            arguments = listOf(
+                                navArgument("n") { type = NavType.StringType },
+                                navArgument("title") { type = NavType.StringType },
+                            ),
+                        ) { entry ->
+                            CommentsScreen(
+                                name = entry.arguments?.getString("n").orEmpty(),
+                                title = try {
+                                    java.net.URLDecoder.decode(entry.arguments?.getString("title") ?: "", "UTF-8")
+                                } catch (_: Exception) {
+                                    entry.arguments?.getString("title").orEmpty()
+                                },
+                                onBack = { nav.popBackStack() },
+                            )
+                        }
+                        composable(
+                            "clearinfo/{title}/{endings}/{content}",
+                            arguments = listOf(
+                                navArgument("title") { type = NavType.StringType },
+                                navArgument("endings") { type = NavType.StringType },
+                                navArgument("content") { type = NavType.StringType },
+                            ),
+                        ) { entry ->
+                            fun dec(s: String?) = try {
+                                java.net.URLDecoder.decode(s ?: "", "UTF-8")
+                            } catch (_: Exception) {
+                                s.orEmpty()
+                            }
+                            ClearInfoScreen(
+                                title = dec(entry.arguments?.getString("title")),
+                                endings = dec(entry.arguments?.getString("endings"))
+                                    .split("\u0001").filter { it.isNotBlank() },
+                                content = dec(entry.arguments?.getString("content")),
+                                onBack = { nav.popBackStack() },
+                            )
+                        }
+                        composable("help") {
+                            HelpScreen(onBack = { nav.popBackStack() })
                         }
                         composable("settings") {
                             SettingsScreen(onBack = { nav.popBackStack() })

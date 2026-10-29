@@ -153,7 +153,7 @@ private fun SettingsScreenContent(
             Spacer(Modifier.height(8.dp))
             Text("手柄映射", style = MaterialTheme.typography.titleSmall)
 
-            PadActions.actions.forEach { action ->
+            PadActions.actions.filter { it.id != "fs" }.forEach { action ->
                 Card(
                     Modifier
                         .fillMaxWidth()

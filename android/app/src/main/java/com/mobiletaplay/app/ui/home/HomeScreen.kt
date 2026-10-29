@@ -25,6 +25,7 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.HelpOutline
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.ScreenRotation
@@ -226,6 +227,7 @@ fun HomeScreen(
     onOpenSettings: () -> Unit,
     onOpenSearch: (SearchQuery) -> Unit = {},
     onOpenList: (String) -> Unit = {},
+    onOpenHelp: () -> Unit = {},
 ) {
     val activity = LocalContext.current as? Activity
     val context = LocalContext.current
@@ -280,10 +282,15 @@ fun HomeScreen(
                     else -> {
                     }
                 }
+                true
             }
         } else {
             com.mobiletaplay.app.ui.common.ShellPad.onDirection = { dir ->
-                try { shellFocusMgr.moveFocus(dir) } catch (_: Exception) {}
+                try {
+                    shellFocusMgr.moveFocus(dir)
+                } catch (_: Throwable) {
+                    false
+                }
             }
         }
     }
@@ -404,6 +411,9 @@ fun HomeScreen(
                         }
                         PadIconButton(onClick = { vm.refresh() }, corner = 8.dp) {
                             Icon(Icons.Default.Refresh, contentDescription = "刷新")
+                        }
+                        PadIconButton(onClick = onOpenHelp, corner = 8.dp) {
+                            Icon(Icons.Default.HelpOutline, contentDescription = "帮助")
                         }
                         PadIconButton(onClick = onOpenSettings, corner = 8.dp) {
                             Icon(Icons.Default.Settings, contentDescription = "设置")

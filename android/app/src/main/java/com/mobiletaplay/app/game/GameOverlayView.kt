@@ -214,7 +214,7 @@ private fun GameChrome(
                     MtpIconBtn(Icons.Default.Settings, "设置", selected = chromeIndex == 3, onClick = onSettings)
                 }
                 Text(
-                    text = if (chromeIndex >= 0) "$title  ·  A确认 B退出" else title,
+                    text = title,
                     color = MtpInk,
                     fontSize = 14.sp,
                     maxLines = 1,

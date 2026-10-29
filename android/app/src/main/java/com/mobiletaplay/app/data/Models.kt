@@ -13,7 +13,6 @@ data class Tower(
     val tags: List<String> = emptyList(),
     val description: String? = null,
     val text: String? = null,
-    /** Long official blurb / clear-condition notes from list API */
     val content: String? = null,
     val link: String? = null,
     val previews: List<String> = emptyList(),
@@ -24,6 +23,13 @@ data class Tower(
     val updateTime: String? = null,
     val recommend: Boolean = false,
     val similarIds: List<Int> = emptyList(),
+    // classification
+    val section: Int = 0,
+    val classify: String? = null,
+    val color: Int? = null,
+    val competition: Int = 0,
+    val difficulties: List<String> = emptyList(),
+    val endings: List<String> = emptyList(),
 )
 
 data class TowerPage(
@@ -32,4 +38,14 @@ data class TowerPage(
     val total: Int,
     val page: Int,
     val towers: List<Tower>,
+)
+
+data class TowerComment(
+    val id: Int,
+    val authorName: String,
+    val authorId: Int = 0,
+    val text: String = "",
+    val timestamp: String = "",
+    val loveNum: Int = 0,
+    val replies: List<TowerComment> = emptyList(),
 )
