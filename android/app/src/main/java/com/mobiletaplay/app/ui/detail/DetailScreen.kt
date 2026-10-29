@@ -6,6 +6,7 @@ import com.mobiletaplay.app.data.TowerStore
 import android.app.Activity
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.lazy.LazyRow
@@ -18,13 +19,17 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.ScreenRotation
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.focusable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
@@ -39,13 +44,14 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class, ExperimentalLayoutApi::class)
 @Composable
 fun DetailScreen(
     name: String,
     onBack: () -> Unit,
     onOpenSettings: () -> Unit,
     onStartGame: (url: String, title: String) -> Unit,
+    onOpenAuthor: (String) -> Unit = {},
 ) {
     val scope = rememberCoroutineScope()
     val ctx = LocalContext.current
@@ -164,7 +170,7 @@ fun DetailScreen(
                             .verticalScroll(rememberScrollState()),
                     ) {
                         DetailMedia(shots, shotIndex, Modifier.weight(0.42f))
-                        DetailInfo(t, shots, shotIndex, onSelect = { shotIndex = it }, Modifier.weight(0.58f))
+                        DetailInfo(t, shots, shotIndex, onSelect = { shotIndex = it }, onOpenAuthor = onOpenAuthor, Modifier.weight(0.58f))
                     }
                 } else {
                     Column(
@@ -174,7 +180,7 @@ fun DetailScreen(
                             .verticalScroll(rememberScrollState()),
                     ) {
                         DetailMedia(shots, shotIndex, Modifier.fillMaxWidth())
-                        DetailInfo(t, shots, shotIndex, onSelect = { shotIndex = it }, Modifier.fillMaxWidth())
+                        DetailInfo(t, shots, shotIndex, onSelect = { shotIndex = it }, onOpenAuthor = onOpenAuthor, Modifier.fillMaxWidth())
                     }
                 }
             }
@@ -192,7 +198,11 @@ private fun DetailMedia(shots: List<String>, index: Int, modifier: Modifier = Mo
             pagerState.scrollToPage(index)
         }
     }
-    Column(modifier) {
+    Column(
+        modifier.focusProperties {
+            canFocus = false
+        }
+    ) {
         HorizontalPager(
             state = pagerState,
             modifier = Modifier
@@ -203,7 +213,9 @@ private fun DetailMedia(shots: List<String>, index: Int, modifier: Modifier = Mo
                 model = shots[i],
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .focusable(false),
             )
         }
         Row(
@@ -228,39 +240,123 @@ private fun DetailMedia(shots: List<String>, index: Int, modifier: Modifier = Mo
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun DetailInfo(
     t: Tower,
     shots: List<String>,
     index: Int,
     onSelect: (Int) -> Unit,
+    onOpenAuthor: (String) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
-    var expanded by remember { mutableStateOf(false) }
+    val favContext = LocalContext.current
+    val favStore = remember { com.mobiletaplay.app.data.TowerStore.get(favContext) }
+    val favScope = rememberCoroutineScope()
+    var favOn by remember(t.name) { mutableStateOf(false) }
+    LaunchedEffect(t.name) {
+        favOn = try {
+            favStore.favorites().contains(t.name)
+        } catch (_: Exception) {
+            false
+        }
+    }
     Column(modifier.padding(12.dp)) {
 
-        Text(t.title, style = MaterialTheme.typography.titleLarge, maxLines = 2)
-        Text(
-            t.author,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            style = MaterialTheme.typography.bodyMedium,
-            maxLines = 1,
-        )
-        Spacer(Modifier.height(10.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(t.title, style = MaterialTheme.typography.titleLarge, maxLines = 2, modifier = Modifier.weight(1f))
+            if (t.recommend) {
+                Text(
+                    "推荐",
+                    color = MaterialTheme.colorScheme.primary,
+                    style = MaterialTheme.typography.labelMedium,
+                )
+            }
+        }
+        Spacer(Modifier.height(4.dp))
+        TextButton(
+            onClick = { if (t.author.isNotBlank()) onOpenAuthor(t.author) },
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 0.dp),
+        ) {
+            Text(
+                "作者 " + (t.author.ifBlank { "未知" }),
+                color = MaterialTheme.colorScheme.primary,
+                style = MaterialTheme.typography.bodyMedium,
+            )
+        }
+        Spacer(Modifier.height(8.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             Stat("评分", t.rate ?: "—")
             Stat("在玩", t.people ?: "0")
             Stat("通关", t.win ?: "0")
             Stat("层数", t.floors ?: "?")
+            Stat("评论", t.commentCount.toString())
+            Stat("点赞", t.thumbUp.toString())
         }
+        if (!t.difficulty.isNullOrBlank()) {
+            Spacer(Modifier.height(8.dp))
+            Text(
+                "难度系数 " + t.difficulty,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        if (t.tags.isNotEmpty()) {
+            Spacer(Modifier.height(10.dp))
+            androidx.compose.foundation.layout.FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                t.tags.forEach { tag ->
+                    SuggestionChip(
+                        onClick = { onOpenAuthor(t.author) },
+                        label = { Text(tag, style = MaterialTheme.typography.labelMedium) },
+                    )
+                }
+            }
+        }
+        val intro = plain(t.content?.ifBlank { null } ?: t.description ?: t.text)
         Spacer(Modifier.height(10.dp))
-        Text("简介", style = MaterialTheme.typography.titleMedium)
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text("简介 / 说明", style = MaterialTheme.typography.titleMedium)
+            TextButton(
+                onClick = {
+                    favScope.launch {
+                        favStore.toggleFavorite(t.name)
+                        favOn = favStore.favorites().contains(t.name)
+                    }
+                },
+                modifier = Modifier.padFocusRing(corner = 20.dp),
+            ) {
+                Icon(
+                    Icons.Default.Star,
+                    contentDescription = null,
+                    tint = if (favOn) Color(0xFFF0B429) else MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.width(4.dp))
+                Text(if (favOn) "已收藏" else "收藏")
+            }
+        }
         Spacer(Modifier.height(6.dp))
         Text(
-            plain(t.description ?: t.text ?: "暂无简介"),
+            intro.ifBlank { "暂无简介" },
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+        if (!t.uploadTime.isNullOrBlank() || !t.updateTime.isNullOrBlank()) {
+            Spacer(Modifier.height(12.dp))
+            Text(
+                listOfNotNull(
+                    t.uploadTime?.let { "发布 $it" },
+                    t.updateTime?.let { "更新 ${it.take(10)}" },
+                ).joinToString(" · "),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.outline,
+            )
+        }
     }
 }
 

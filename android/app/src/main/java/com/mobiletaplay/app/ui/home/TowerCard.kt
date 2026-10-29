@@ -77,16 +77,12 @@ fun TowerCard(
                         .align(Alignment.TopStart)
                         .padding(8.dp),
                 )
-                IconButton(
-                    onClick = onFav,
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .focusable(),
-                ) {
+                // Star is display-only; toggle from detail page
+                Box(Modifier.align(Alignment.TopEnd).padding(8.dp)) {
                     Icon(
                         Icons.Default.Star,
-                        contentDescription = "收藏",
-                        tint = if (fav) Color(0xFFF0B429) else Color.White.copy(alpha = 0.85f),
+                        contentDescription = if (fav) "已收藏" else "未收藏",
+                        tint = if (fav) Color(0xFFF0B429) else Color.White.copy(alpha = 0.45f),
                     )
                 }
                 Text(
@@ -124,14 +120,18 @@ fun TowerCard(
                 Spacer(Modifier.height(6.dp))
                 val desc = plainText(t.description ?: t.text ?: "")
                 if (desc.isNotEmpty()) {
+                    // Feed-style: vary text height so cards pack unevenly
+                    val maxLines = 2 + ((t.title.length + desc.length) % 5)
                     Text(
                         desc,
-                        maxLines = 4,
+                        maxLines = maxLines,
                         overflow = TextOverflow.Ellipsis,
                         fontSize = 12.sp,
                         lineHeight = 18.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
+                } else {
+                    Spacer(Modifier.height(8.dp))
                 }
             }
         }

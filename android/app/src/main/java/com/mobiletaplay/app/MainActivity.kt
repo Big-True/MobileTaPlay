@@ -122,6 +122,11 @@ class MainActivity : ComponentActivity() {
                                             .addFlags(android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP or android.content.Intent.FLAG_ACTIVITY_SINGLE_TOP)
                                     )
                                 },
+                                onOpenAuthor = { author ->
+                                    nav.navigate(
+                                        "searchlist?mode=author&sort=hot&k=" + Uri.encode(author)
+                                    )
+                                },
                             )
                         }
                         composable("settings") {

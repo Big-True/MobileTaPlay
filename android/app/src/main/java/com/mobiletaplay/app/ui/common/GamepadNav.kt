@@ -25,6 +25,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.focus.FocusDirection
+import androidx.compose.ui.focus.FocusManager
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
@@ -118,6 +119,13 @@ object ShellPad {
     }
 }
 
+private fun safeMoveFocus(focusManager: FocusManager, dir: FocusDirection) {
+    try {
+        focusManager.moveFocus(dir)
+    } catch (_: Throwable) {
+    }
+}
+
 @Composable
 fun rememberShellFocus(): FocusRequester {
     val fr = remember { FocusRequester() }
@@ -141,7 +149,7 @@ fun Modifier.shellNav(
 ): Modifier {
     val focusManager = LocalFocusManager.current
     LaunchedEffect(onBack, onMenu, onL, onR, onScroll) {
-        ShellPad.onDirection = { dir -> focusManager.moveFocus(dir) }
+        ShellPad.onDirection = { dir -> safeMoveFocus(focusManager, dir) }
         ShellPad.onBack = onBack
         ShellPad.onMenu = onMenu
         ShellPad.onPage = { d -> if (d < 0) onL?.invoke() else onR?.invoke() }
@@ -153,20 +161,20 @@ fun Modifier.shellNav(
             Key.DirectionUp -> {
                 if (onScroll?.invoke(true) == true) true
                 else {
-                    focusManager.moveFocus(FocusDirection.Up); true
+                    safeMoveFocus(focusManager, FocusDirection.Up); true
                 }
             }
             Key.DirectionDown -> {
                 if (onScroll?.invoke(false) == true) true
                 else {
-                    focusManager.moveFocus(FocusDirection.Down); true
+                    safeMoveFocus(focusManager, FocusDirection.Down); true
                 }
             }
             Key.DirectionLeft -> {
-                focusManager.moveFocus(FocusDirection.Left); true
+                safeMoveFocus(focusManager, FocusDirection.Left); true
             }
             Key.DirectionRight -> {
-                focusManager.moveFocus(FocusDirection.Right); true
+                safeMoveFocus(focusManager, FocusDirection.Right); true
             }
             Key.DirectionCenter, Key.NumPadEnter, Key.Enter -> {
                 onA?.invoke(); false
@@ -248,7 +256,7 @@ fun Modifier.padFocusRing(
                 scope.launch {
                     try {
                         bring.bringIntoView()
-                    } catch (_: Exception) {
+                    } catch (_: Throwable) {
                     }
                 }
             }
@@ -284,7 +292,7 @@ fun Modifier.padClickable(
                 scope.launch {
                     try {
                         bring.bringIntoView()
-                    } catch (_: Exception) {
+                    } catch (_: Throwable) {
                     }
                 }
             }

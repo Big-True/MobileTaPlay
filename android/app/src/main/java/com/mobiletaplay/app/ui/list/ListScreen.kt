@@ -9,6 +9,14 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
+import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
+import androidx.compose.foundation.lazy.staggeredgrid.items as staggeredItems
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
@@ -181,6 +189,15 @@ fun ListScreen(
         factory = ListVmFactory(context, TowerStore.get(context), mode, keyword, searchMode, sort),
     )
     val ui by vm.ui
+    var gridCols by remember { mutableStateOf(3) }
+    LaunchedEffect(Unit) {
+        try {
+            com.mobiletaplay.app.data.SettingsRepository.get(context)
+                .settings
+                .collect { gridCols = it.gridColumns }
+        } catch (_: Exception) {
+        }
+    }
 
     LaunchedEffect(Unit) { vm.load() }
 
@@ -211,30 +228,19 @@ fun ListScreen(
                 }
                 ui.towers.isEmpty() -> ErrorPane("暂无内容")
                 else -> {
-                    val state = rememberLazyGridState()
-                    LazyVerticalGrid(
-                        columns = GridCells.Adaptive(minSize = 170.dp),
-                        state = state,
+                    LazyVerticalStaggeredGrid(
+                        columns = StaggeredGridCells.Fixed(gridCols),
                         contentPadding = PaddingValues(16.dp),
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp),
-                        modifier = Modifier
-                            .fillMaxSize()
-                            ,
+                        verticalItemSpacing = 12.dp,
+                        modifier = Modifier.fillMaxSize(),
                     ) {
-                        items(ui.towers, key = { "${mode}_${it.name}" }) { t ->
+                        staggeredItems(ui.towers, key = { "${mode}_${it.name}" }) { t ->
                             TowerCard(
                                 t = t,
                                 fav = ui.favorites.contains(t.name),
                                 onClick = { vm.onOpen(t); onOpenDetail(t.name) },
                                 onFav = { vm.toggleFavorite(t.name) },
-                            )
-                        }
-                        item(span = { GridItemSpan(maxLineSpan) }) {
-                            Box(
-                                Modifier
-                                    .fillMaxWidth()
-                                    .height(24.dp),
                             )
                         }
                     }

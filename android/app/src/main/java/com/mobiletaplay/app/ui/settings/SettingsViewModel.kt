@@ -16,6 +16,7 @@ data class SettingsUiState(
     val mapping: Map<String, String> = emptyMap(),
     val bindingAction: String? = null,
     val error: String = "",
+    val gridColumns: Int = 3,
 )
 
 /** L1: settings + pad binding state lives in one ViewModel. */
@@ -31,7 +32,11 @@ class SettingsViewModel(
             val s = repo.current()
             val map = MappingCodec.decode(s.mappingJson)
             PadActions.applyMap(map)
-            _ui.value = SettingsUiState(loading = false, mapping = map)
+            _ui.value = SettingsUiState(
+                loading = false,
+                mapping = map,
+                gridColumns = s.gridColumns,
+            )
         }
     }
 
@@ -50,6 +55,15 @@ class SettingsViewModel(
         _ui.value = _ui.value.copy(mapping = PadActions.all(), bindingAction = null)
     }
 
+    fun setGridColumns(cols: Int) {
+        val c = cols.coerceIn(2, 4)
+        _ui.value = _ui.value.copy(gridColumns = c)
+        viewModelScope.launch {
+            val s = repo.current()
+            repo.saveAll(s.copy(gridColumns = c))
+        }
+    }
+
     fun resetDefaults() {
         PadActions.reset()
         persist()
@@ -59,7 +73,8 @@ class SettingsViewModel(
     private fun persist() {
         viewModelScope.launch {
             val json = MappingCodec.encode(PadActions.all())
-            repo.saveAll(AppSettings(mappingJson = json))
+            val s = repo.current()
+            repo.saveAll(s.copy(mappingJson = json))
         }
     }
 }

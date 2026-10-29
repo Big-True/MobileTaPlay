@@ -26,6 +26,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.mobiletaplay.app.ui.common.PadIconButton
 import com.mobiletaplay.app.ui.common.padFocusRing
 import com.mobiletaplay.app.ui.common.shellNav
 
@@ -53,12 +54,12 @@ fun SearchScreen(
             TopAppBar(
                 title = { Text("高级搜索") },
                 navigationIcon = {
-                    IconButton(onClick = onBack, modifier = Modifier.padFocusRing(corner = 24.dp)) {
+                    PadIconButton(onClick = onBack, corner = 8.dp) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
                     }
                 },
                 actions = {
-                    IconButton(onClick = { onApply(q) }, modifier = Modifier.padFocusRing(corner = 24.dp)) {
+                    PadIconButton(onClick = { onApply(q) }, corner = 8.dp) {
                         Text("搜索", color = MaterialTheme.colorScheme.primary)
                     }
                 },

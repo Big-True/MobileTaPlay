@@ -1,3 +1,4 @@
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class, androidx.compose.ui.ExperimentalComposeUiApi::class, androidx.compose.foundation.ExperimentalFoundationApi::class)
 package com.mobiletaplay.app.ui.home
 
 import android.app.Activity
@@ -14,6 +15,11 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
+
+import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
+import androidx.compose.foundation.lazy.staggeredgrid.items as staggeredItems
+import androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
@@ -198,6 +204,22 @@ private class HomeVmFactory(private val repo: TowerStore) : ViewModelProvider.Fa
 }
 
 @OptIn(ExperimentalMaterial3Api::class, androidx.compose.ui.ExperimentalComposeUiApi::class)
+
+@Composable
+private fun rememberGridColumns(): Int {
+    val context = LocalContext.current
+    var cols by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(3) }
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        try {
+            com.mobiletaplay.app.data.SettingsRepository.get(context)
+                .settings
+                .collect { cols = it.gridColumns }
+        } catch (_: Exception) {
+        }
+    }
+    return cols
+}
+
 @Composable
 fun HomeScreen(
     onOpenDetail: (String) -> Unit,
@@ -216,6 +238,8 @@ fun HomeScreen(
     val shellFocus = rememberShellFocus()
     val drawerFocus = androidx.compose.ui.focus.FocusRequester()
     val firstCardFocus = androidx.compose.ui.focus.FocusRequester()
+    val firstChipFocus = androidx.compose.ui.focus.FocusRequester()
+    val gridCols = rememberGridColumns()
     val drawerItemFocus = remember {
         List(4) { androidx.compose.ui.focus.FocusRequester() }
     }
@@ -226,7 +250,7 @@ fun HomeScreen(
             kotlinx.coroutines.delay(180)
             drawerIndex = 0
             try {
-                drawerItemFocus[0].requestFocus()
+                if (drawer.isOpen) drawerItemFocus[0].requestFocus()
             } catch (_: Exception) {
             }
         }
@@ -241,7 +265,7 @@ fun HomeScreen(
                     androidx.compose.ui.focus.FocusDirection.Down -> {
                         drawerIndex = (drawerIndex + 1) % drawerItemFocus.size
                         try {
-                            drawerItemFocus[drawerIndex].requestFocus()
+                            try { drawerItemFocus[drawerIndex].requestFocus() } catch (_: Exception) {}
                         } catch (_: Exception) {
                         }
                     }
@@ -249,7 +273,7 @@ fun HomeScreen(
                         drawerIndex =
                             (drawerIndex + drawerItemFocus.size - 1) % drawerItemFocus.size
                         try {
-                            drawerItemFocus[drawerIndex].requestFocus()
+                            try { drawerItemFocus[drawerIndex].requestFocus() } catch (_: Exception) {}
                         } catch (_: Exception) {
                         }
                     }
@@ -259,7 +283,7 @@ fun HomeScreen(
             }
         } else {
             com.mobiletaplay.app.ui.common.ShellPad.onDirection = { dir ->
-                shellFocusMgr.moveFocus(dir)
+                try { shellFocusMgr.moveFocus(dir) } catch (_: Exception) {}
             }
         }
     }
@@ -345,6 +369,9 @@ fun HomeScreen(
                 ),
             topBar = {
                 TopAppBar(
+                    modifier = Modifier.focusProperties {
+                        down = firstChipFocus
+                    },
                     title = {
                         Column {
                             Text("MobileTaPlay")
@@ -365,6 +392,10 @@ fun HomeScreen(
                         }
                     },
                     actions = {
+                        androidx.compose.foundation.layout.Row {
+                            val topDown = androidx.compose.ui.focus.FocusRequester()
+                            // attach down target on each chrome button
+                        }
                         PadIconButton(
                             onClick = { toggleActivityOrientation(activity) },
                             corner = 8.dp,
@@ -392,8 +423,10 @@ fun HomeScreen(
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp)
                         .focusProperties {
-                            // Chip row → first tower card
-                            down = firstCardFocus
+                            // Chip row → first tower card (only when composed)
+                            if (state.towers.isNotEmpty()) {
+                                down = firstCardFocus
+                            }
                         },
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
@@ -404,7 +437,11 @@ fun HomeScreen(
                                 vm.setSort(id)
                                 scope.launch { gridState.scrollToItem(0) }
                             },
-                            modifier = Modifier.padFocusRing(corner = 8.dp, ringVInset = 6.dp),
+                            modifier = Modifier.padFocusRing(
+                                focusRequester = if (id == "hot") firstChipFocus else null,
+                                corner = 8.dp,
+                                ringVInset = 6.dp,
+                            ),
                             label = { Text(label) },
                         )
                     }
@@ -421,6 +458,7 @@ fun HomeScreen(
                         hasMore = state.hasMore,
                         gridState = gridState,
                         firstCardFocus = firstCardFocus,
+                        gridCols = gridCols,
                         onLoadMore = { vm.loadMore() },
                         onOpen = { t -> vm.onOpen(t); onOpenDetail(t.name) },
                         onFav = { vm.toggleFavorite(it) },
@@ -453,21 +491,20 @@ private fun TowerGrid(
     hasMore: Boolean,
     gridState: androidx.compose.foundation.lazy.grid.LazyGridState,
     firstCardFocus: androidx.compose.ui.focus.FocusRequester? = null,
+    gridCols: Int = 3,
     onLoadMore: () -> Unit,
     onOpen: (Tower) -> Unit,
     onFav: (String) -> Unit,
 ) {
-    LazyVerticalGrid(
-        columns = GridCells.Adaptive(minSize = 170.dp),
-        state = gridState,
+    LazyVerticalStaggeredGrid(
+        columns = StaggeredGridCells.Fixed(gridCols),
+        state = rememberLazyStaggeredGridState(),
         contentPadding = PaddingValues(16.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-        modifier = Modifier
-            .fillMaxSize()
-            ,
+        verticalItemSpacing = 12.dp,
+        modifier = Modifier.fillMaxSize(),
     ) {
-        items(towers, key = { it.id }) { t ->
+        staggeredItems(towers, key = { it.id }) { t ->
             TowerCard(
                 t = t,
                 fav = favorites.contains(t.name),
@@ -477,10 +514,9 @@ private fun TowerGrid(
             )
         }
         if (towers.isNotEmpty()) {
-            item(span = { GridItemSpan(maxLineSpan) }) {
-                LaunchedEffect(gridState.layoutInfo, towers.size, loading) {
-                    val last = gridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
-                    if (!loading && hasMore && last >= towers.size - 4) onLoadMore()
+            item(span = androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridItemSpan.FullLine) {
+                LaunchedEffect(towers.size, loading) {
+                    if (!loading && hasMore) onLoadMore()
                 }
                 if (loading) {
                     CircularProgressIndicator(

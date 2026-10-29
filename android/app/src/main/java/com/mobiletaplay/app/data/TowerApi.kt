@@ -68,6 +68,15 @@ object TowerApi {
                         text = t.optString("text").ifBlank { null },
                         link = t.optString("link").ifBlank { null },
                         previews = parseStringArray(t.opt("previews")),
+                        content = t.optString("content").ifBlank { null },
+                        commentCount = t.optInt("comment"),
+                        thumbUp = t.optInt("thumb_up"),
+                        difficulty = t.optString("difficultrate").ifBlank { null },
+                        uploadTime = t.optString("uploadtime").ifBlank { null },
+                        updateTime = t.optString("lasttime").ifBlank { t.optString("updatetime").ifBlank { null } },
+                        recommend = t.optBoolean("recommend"),
+                        similarIds = t.optString("similar_tower_ids")
+                            .split(",").mapNotNull { it.trim().toIntOrNull() },
                     )
                 )
             }

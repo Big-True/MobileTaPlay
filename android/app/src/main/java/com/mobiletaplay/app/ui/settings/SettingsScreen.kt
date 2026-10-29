@@ -1,3 +1,4 @@
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 package com.mobiletaplay.app.ui.settings
 
 import androidx.compose.foundation.clickable
@@ -15,6 +16,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -39,6 +41,7 @@ import androidx.compose.runtime.setValue
 import com.mobiletaplay.app.data.SettingsRepository
 import com.mobiletaplay.app.input.PadActions
 import com.mobiletaplay.app.ui.about.AboutScreen
+import com.mobiletaplay.app.ui.common.PadIconButton
 import com.mobiletaplay.app.ui.common.padClickable
 import com.mobiletaplay.app.ui.common.padFocusRing
 import com.mobiletaplay.app.ui.common.shellNav
@@ -109,10 +112,10 @@ private fun SettingsScreenContent(
             TopAppBar(
                 title = { Text("设置") },
                 navigationIcon = {
-                    IconButton(onClick = {
+                    PadIconButton(onClick = {
                         BindController.active = false
                         onBack()
-                    }, modifier = Modifier.padFocusRing(corner = 12.dp)) {
+                    }, corner = 8.dp) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
                     }
                 },
@@ -127,14 +130,28 @@ private fun SettingsScreenContent(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Text(
-                if (ui.bindingAction != null)
-                    "请按手柄键绑定「${PadActions.actions.firstOrNull { it.id == ui.bindingAction }?.label}」…"
-                else
-                    "点左侧操作，再按手柄键绑定",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            if (ui.bindingAction != null) {
+                Text(
+                    "请按手柄键绑定「${PadActions.actions.firstOrNull { it.id == ui.bindingAction }?.label}」…",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+
+            Text("卡片列数", style = MaterialTheme.typography.titleSmall)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf(2 to "2列", 3 to "3列", 4 to "4列").forEach { (cols, label) ->
+                    FilterChip(
+                        selected = ui.gridColumns == cols,
+                        onClick = { vm.setGridColumns(cols) },
+                        modifier = Modifier.padFocusRing(corner = 8.dp, ringVInset = 8.dp),
+                        label = { Text(label) },
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(8.dp))
+            Text("手柄映射", style = MaterialTheme.typography.titleSmall)
 
             PadActions.actions.forEach { action ->
                 Card(
